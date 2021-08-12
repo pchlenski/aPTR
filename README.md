@@ -2,7 +2,7 @@
 Microbial dynamics inferred from single-sample amplicon sequencing
 
 ## Generating tables
-We used PATRIC p3-scripts to grab all 16S and dnaA from the PATRIC database.
+We used [PATRIC p3-scripts](https://github.com/PATRIC3/PATRIC-distribution) to grab all 16S and dnaA from the PATRIC database.
 
 Command to generate `allSSU.tsv`:
 
