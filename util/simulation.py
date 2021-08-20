@@ -214,7 +214,7 @@ def simulate(
             if verbose:
                 print(f"Generating sample {sample_no} for organism {genome}...")
 
-            sample += generate_reads(
+            reads = generate_reads(
                 sequence=sequences[genome],
                 n_reads=n_reads,
                 ptr=ptr,
@@ -222,11 +222,12 @@ def simulate(
                 oor=start,
                 read_length=read_length
             )
+            sample.append(reads)
 
         rng.shuffle(sample)
         reads.append(sample)
 
-    return reads, ptrs, coverages
+    return reads, ptrs, coverages, otu_matrix
 
 def write_output(
     samples : list,
@@ -235,7 +236,18 @@ def write_output(
     path : str = None,
     use_gzip : bool = True) -> None:
     """
-    Write a set of reads as a fq.gz file
+    Write a set of reads as a fastq.gz file
+
+    Args:
+    -----
+    TODO
+
+    Returns:
+    --------
+    None (writes to disk)
+
+    Raises:
+    TODO
     """
 
     # Set path by UUID if needed
@@ -253,7 +265,7 @@ def write_output(
         np.savetxt(f"{path}/coverages.tsv", coverages, delimiter="\t")
         print(f"Finished writing coverages to {path}/coverages.tsv")
 
-    # Save reads 
+    # Save reads
     for idx, sample in enumerate(samples):
         if use_gzip:
             with gzip.open(f"{path}/S_{idx}.fastq.gz", "wb") as f:
@@ -264,3 +276,11 @@ def write_output(
 
         print(f"Finished writing sample {idx} to {path}/S_{idx}.fastq.gz")
 
+
+# def simulate_from_ids(
+#     ids : list,
+#     **simulate_args
+#     ) -> None:
+#     """
+#     Given a list of IDs, simulate reads.
+#     """
