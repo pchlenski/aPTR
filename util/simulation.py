@@ -2,16 +2,19 @@
 Scripts to simulate read coverage from a known PTR
 """
 
-import numpy as np
-import pandas as pd
 import gzip
 from uuid import uuid4
 import os
+from pprint import pprint
+
+import numpy as np
+import pandas as pd
+
 from Bio import SeqIO
 
 def ptr_curve(
     size : int,
-    ptr : float, 
+    ptr : float,
     oor : int = 0) -> np.ndarray:
     """
     Given an array of x-values and a PTR, produce a plausible PTR curve.
@@ -191,7 +194,7 @@ def simulate(
     rng = np.random.default_rng() #random number generator to shuffle
     inputs = pd.DataFrame(columns=["Species", "Sample", "PTR", "Reads"])
 
-    reads = []
+    samples = []
 
     # Randomly choose PTRs
     if ptrs is None:
@@ -209,11 +212,16 @@ def simulate(
             ptr = ptrs[idx, sample_no]
             n_reads = coverages[idx, sample_no]
 
-            inputs = inputs.append({"Sample":sample_no, "Species":genome, "PTR":ptr, "Reads":n_reads}, ignore_index=True)
+            inputs = inputs.append({
+                "Sample" : sample_no,
+                "Species" : genome,
+                "PTR" : ptr,
+                "Reads" : n_reads
+            }, ignore_index=True)
 
             try:
                 start = db[db["genome"] == genome]['oor_position'].iloc[0]
-            except Exception as e:
+            except KeyError:
                 print(f"No OOR found for {genome}, assume OOR at 0.")
                 start = 0
 
@@ -224,20 +232,24 @@ def simulate(
             if verbose:
                 print(f"Generating sample {sample_no} for organism {genome}...")
 
-            reads = generate_reads(
-                sequence=sequences[genome],
+            seq = sequences[genome]
+            # if isinstance(seq, list):
+            #     seq = ''.join(seq)
+
+            # This aggregates all reads into a single list to be shuffled later
+            sample += generate_reads(
+                sequence=seq,
                 n_reads=n_reads,
                 ptr=ptr,
                 name=genome,
                 oor=start,
                 read_length=read_length
             )
-            sample.append(reads)
 
         rng.shuffle(sample)
-        reads.append(sample)
+        samples.append(sample)
 
-    return reads, ptrs, coverages#, otu_matrix
+    return samples, ptrs, coverages#, otu_matrix
 
 def write_output(
     samples : list,
@@ -259,6 +271,8 @@ def write_output(
     Raises:
     TODO
     """
+    print("SAMPLES")
+    pprint(samples)
 
     # Set path by UUID if needed
     if path is None:
@@ -292,8 +306,7 @@ def simulate_from_ids(
     ids : list,
     fasta_path : str,
     suffix : str = '.fna.gz',
-    use_gzip : bool = True,
-    **simulate_args) -> None:
+    **simulate_args) -> (list, np.ndarray, np.ndarray):
     """
     Given a list of IDs, simulate reads.
 
@@ -328,7 +341,8 @@ def simulate_from_ids(
             for record in sequence.records:
                 sequences[gid].append(record.seq)
 
-    sequences = {seq : sequences[seq][0] for seq in sequences} # TODO: remove reliance on this
+    # TODO: remove reliance on this
+    sequences = {seq : sequences[seq][0] for seq in sequences}
+    # This only works for complete genomes
+
     return simulate(db=db, sequences=sequences, **simulate_args)
-
-
