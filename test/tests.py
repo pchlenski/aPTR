@@ -24,8 +24,10 @@ def test_2():
     """
     Simulate two reads. Tests generate_reads().
     """
+    db = pd.read_pickle('./data/db.pkl')
     seq = 'actgactgactgactgactgactgactgactgactgactgactgactg'
     out = generate_reads(
+        db=db,
         sequence=seq, 
         n_reads=2,
         read_length=10,

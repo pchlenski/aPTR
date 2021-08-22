@@ -95,6 +95,7 @@ def rc(seq):
 def generate_reads(
     sequence : str,
     n_reads : int,
+    db : pd.DataFrame = None,
     read_length : int = 300,
     ptr : float = 1,
     oor : int = 0,
@@ -104,6 +105,8 @@ def generate_reads(
 
     Args:
     -----
+    db:
+        Pandas dataframe containing 16S information. SHOULD BE FILTERED!
     sequence:
         String (or Biopython Seq object) corresponding to the full nucleotide sequence of an organism/contig.
     n_reads:
@@ -133,6 +136,15 @@ def generate_reads(
     # Ensure OOR is int
     oor = int(oor)
 
+    # Get 16S positions from DB
+    if db is not None:
+        rnas = list(db['16s_position'])
+        rna_reads = {x : 0 for x in db['16s_md5'].unique()}
+    else:
+        print(f"No RNAs found for genome: {name}")
+        rnas = []
+        rna_reads = {}
+
     # Account for circularity of chromosome
     seq_length = len(sequence)
     seq_repeat = sequence[0:read_length]
@@ -146,7 +158,7 @@ def generate_reads(
     starts = np.random.choice(positions, p=probs, size=n_reads)
 
     # Given starts, make sequences
-    output = []
+    reads = []
     for idx, start in enumerate(starts):
         # Get the read
         end = start + read_length
@@ -156,14 +168,26 @@ def generate_reads(
         if np.random.rand() > .5:
             read = rc(read)
 
+            # Need to change indexing
+            old_start = start
+            start = end
+            end = old_start
+
+        # Check for RNA membership --- patch #3 08.22.2021
+        dists = [np.abs(rna - start) for rna in rnas]
+        if dists and np.min(dists) < read_length:
+            # TODO: redo this using strand, start, and stop
+            otu_name = db.iloc[np.argmin(dists)]['16s_md5']
+            rna_reads[otu_name] += 1
+
         # Concatenate into a plausible-looking fastq output and push to output
         fastq_line1 = f"@{name}:{idx}:{start}:{end}"
         fastq_line2 = read
         fastq_line3 = '+'
         fastq_line4 = read_length * 'I' # Max quality, I guess?
-        output.append("\n".join([fastq_line1, fastq_line2, fastq_line3, fastq_line4]))
+        reads.append("\n".join([fastq_line1, fastq_line2, fastq_line3, fastq_line4]))
 
-    return output
+    return reads, rna_reads
 
 def simulate(
     db : pd.DataFrame,
@@ -172,6 +196,7 @@ def simulate(
     coverages : np.array = None,
     n_samples : int = 10,
     read_length : int = 300,
+    scale : float = 1e5,
     verbose : bool = True) -> (list, np.array, np.array):
     """
     Given known PTRs and coverages, generate synthetic reads.
@@ -195,6 +220,7 @@ def simulate(
     inputs = pd.DataFrame(columns=["Species", "Sample", "PTR", "Reads"])
 
     samples = []
+    otu_matrix = []
 
     # Randomly choose PTRs
     if ptrs is None:
@@ -202,7 +228,7 @@ def simulate(
 
     # Randomly choose coverages
     if coverages is None:
-        coverages = np.random.exponential(scale=1e5, size=(len(sequences), n_samples))
+        coverages = np.random.exponential(scale=scale, size=(len(sequences), n_samples))
         coverages = coverages.astype(int)
 
     for sample_no in range(n_samples):
@@ -233,29 +259,31 @@ def simulate(
                 print(f"Generating sample {sample_no} for organism {genome}...")
 
             seq = sequences[genome]
-            # if isinstance(seq, list):
-            #     seq = ''.join(seq)
 
             # This aggregates all reads into a single list to be shuffled later
-            sample += generate_reads(
+            reads, rna_reads = generate_reads(
                 sequence=seq,
                 n_reads=n_reads,
+                db=db[db['genome'] == genome],
                 ptr=ptr,
                 name=genome,
                 oor=start,
                 read_length=read_length
             )
+            sample += reads
+            otu_matrix.append(rna_reads)
 
         rng.shuffle(sample)
         samples.append(sample)
 
-    return samples, ptrs, coverages#, otu_matrix
+    return samples, ptrs, coverages, otu_matrix
 
 def write_output(
     samples : list,
     ptrs : np.array = None,
     coverages : np.array = None,
     path : str = None,
+    prefix : str = 'S_',
     use_gzip : bool = True) -> None:
     """
     Write a set of reads as a fastq.gz file
@@ -271,12 +299,10 @@ def write_output(
     Raises:
     TODO
     """
-    print("SAMPLES")
-    pprint(samples)
 
     # Set path by UUID if needed
     if path is None:
-        path = f"./out/{uuid4()}"
+        path = f"./out/{uuid4()}/"
         os.mkdir(path)
 
     # Save PTRs if given
@@ -290,15 +316,16 @@ def write_output(
         print(f"Finished writing coverages to {path}/coverages.tsv")
 
     # Save reads
-    for idx, sample in enumerate(samples):
-        if use_gzip:
-            with gzip.open(f"{path}/S_{idx}.fastq.gz", "wb") as f:
-                f.write("\n".join(sample).encode())
-        else:
-            with open(f"{path}/S_{idx}.fastq", "wb") as f:
-                f.write("\n".join(sample).encode())
+    if samples is not None:
+        for idx, sample in enumerate(samples):
+            if use_gzip:
+                with gzip.open(f"{path}{prefix}{idx}.fastq.gz", "wb") as f:
+                    f.write("\n".join(sample).encode())
+            else:
+                with open(f"{path}{prefix}{idx}.fastq", "wb") as f:
+                    f.write("\n".join(sample).encode())
 
-        print(f"Finished writing sample {idx} to {path}/S_{idx}.fastq.gz")
+            print(f"Finished writing sample {idx} to {path}{prefix}{idx}.fastq.gz")
 
 
 def simulate_from_ids(
