@@ -7,6 +7,7 @@ import pandas as pd
 import gzip
 from uuid import uuid4
 import os
+from Bio import SeqIO
 
 def ptr_curve(
     size : int,
@@ -126,6 +127,9 @@ def generate_reads(
     TODO
     """
 
+    # Ensure OOR is int
+    oor = int(oor)
+
     # Account for circularity of chromosome
     seq_length = len(sequence)
     seq_repeat = sequence[0:read_length]
@@ -169,6 +173,8 @@ def simulate(
     """
     Given known PTRs and coverages, generate synthetic reads.
 
+    TODO: Adapt to multiple contigs
+
     Args:
     -----
     TODO
@@ -211,6 +217,10 @@ def simulate(
                 print(f"No OOR found for {genome}, assume OOR at 0.")
                 start = 0
 
+            if np.isnan(start):
+                print(f"No OOR found for {genome}, assume OOR at 0.")
+                start = 0
+
             if verbose:
                 print(f"Generating sample {sample_no} for organism {genome}...")
 
@@ -227,7 +237,7 @@ def simulate(
         rng.shuffle(sample)
         reads.append(sample)
 
-    return reads, ptrs, coverages, otu_matrix
+    return reads, ptrs, coverages#, otu_matrix
 
 def write_output(
     samples : list,
@@ -277,10 +287,48 @@ def write_output(
         print(f"Finished writing sample {idx} to {path}/S_{idx}.fastq.gz")
 
 
-# def simulate_from_ids(
-#     ids : list,
-#     **simulate_args
-#     ) -> None:
-#     """
-#     Given a list of IDs, simulate reads.
-#     """
+def simulate_from_ids(
+    db : pd.DataFrame,
+    ids : list,
+    fasta_path : str,
+    suffix : str = '.fna.gz',
+    use_gzip : bool = True,
+    **simulate_args) -> None:
+    """
+    Given a list of IDs, simulate reads.
+
+    Args:
+    -----
+    TODO
+
+    Returns:
+    --------
+    TODO
+
+    Raises:
+    -------
+    TODO
+    """
+
+    # Create dict of sequences
+    sequences = {}
+
+    for gid in ids:
+        path = f"{fasta_path}/{gid}{suffix}"
+        sequences[gid] = []
+
+        if suffix.endswith('gz'):
+            with gzip.open(path, "rt") as handle:
+                sequence = SeqIO.parse(handle, "fasta")
+                for record in sequence.records:
+                    sequences[gid].append(record.seq)
+
+        else:
+            sequence = SeqIO.parse(path, "fasta")
+            for record in sequence.records:
+                sequences[gid].append(record.seq)
+
+    sequences = {seq : sequences[seq][0] for seq in sequences} # TODO: remove reliance on this
+    return simulate(db=db, sequences=sequences, **simulate_args)
+
+

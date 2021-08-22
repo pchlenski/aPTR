@@ -74,3 +74,33 @@ def test_3(write=False):
     # Save fastqs
     write_output(reads, ptrs=ptrs, coverages=coverages)
     write_output(reads, ptrs=ptrs, coverages=coverages, use_gzip=False) # Test both ways
+
+def test_4():
+    """
+    Simulate two samples from real fasta files. Tests simulate_from_ids().
+
+    This test uses single-contig sequences.
+    """
+    db = pd.read_pickle('./data/db.pkl')
+    simulate_from_ids(
+        db=db,
+        ids=['703.8', '732.8'],
+        fasta_path='/Users/phil/Documents/Columbia/16s-ptr/data/seqs',
+        suffix='.fna.gz',
+        n_samples=2,
+    )
+
+def test_5():
+    """
+    Simulate two samples from real fasta files. Tests simulate_from_ids().
+
+    This test uses multiple-contig draft genomes.
+    """
+    db = pd.read_pickle('./data/db.pkl')
+    simulate_from_ids(
+        db=db,
+        ids=['192.7', '562.7382'],
+        fasta_path='/Users/phil/Documents/Columbia/16s-ptr/data/seqs',
+        suffix='.fna.gz',
+        n_samples=2,
+    )
