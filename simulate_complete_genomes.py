@@ -16,8 +16,13 @@ import numpy as np
 
 # Edit these variables only
 n_samples = 100
+<<<<<<< HEAD
 n_genomes_per_sample = 20
 scale = 1e5
+=======
+n_genomes_per_sample = 2
+scale = 1e4
+>>>>>>> 7067b4b7c4cafad38890f3faebadb3c17bab0dde
 
 # Simulation code
 db = pd.read_pickle("./data/db.pkl")
@@ -27,7 +32,7 @@ os.mkdir(path)
 
 # Initialize PTR and coverage df
 ptr_df = pd.DataFrame(columns=["genome", "sample", "ptr"])
-cov_df = pd.DataFrame(columns=["genome", "sample", "coverage"])
+cov_df = pd.DataFrame(columns=["genome", "sample", "reads"])
 otu_df = pd.DataFrame(columns=["otu", "sample", "reads"])
 
 for sample in range(n_samples):
@@ -49,7 +54,7 @@ for sample in range(n_samples):
             ignore_index=True
         )
         cov_df = cov_df.append(
-            {"genome" : genome, "sample" : sample, "coverage" : coverage[0]},
+            {"genome" : genome, "sample" : sample, "reads" : coverage[0]},
             ignore_index=True
         )
 
@@ -62,6 +67,12 @@ for sample in range(n_samples):
             )
 
 # Save PTR/coverage dataframes once
+<<<<<<< HEAD
 ptr_df.to_csv(f"{path}/ptrs.tsv", sep="\t")
 cov_df.to_csv(f"{path}/coverages.tsv", sep="\t")
 otu_df.to_csv(f"{path}/16s_otus.tsv", sep="\t")
+=======
+ptr_df.pivot('genome', 'sample', 'ptr').to_csv(f"{path}/ptrs.tsv", sep="\t")
+cov_df.pivot('genome', 'sample', 'reads').to_csv(f"{path}/coverages.tsv", sep="\t")
+otu_df.pivot('otu', 'sample', 'reads').to_csv(f"{path}/16s_otus.tsv", sep="\t")
+>>>>>>> 7067b4b7c4cafad38890f3faebadb3c17bab0dde
