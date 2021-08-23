@@ -16,13 +16,8 @@ import numpy as np
 
 # Edit these variables only
 n_samples = 100
-<<<<<<< HEAD
 n_genomes_per_sample = 20
 scale = 1e5
-=======
-n_genomes_per_sample = 2
-scale = 1e4
->>>>>>> 7067b4b7c4cafad38890f3faebadb3c17bab0dde
 
 # Simulation code
 db = pd.read_pickle("./data/db.pkl")
@@ -67,12 +62,6 @@ for sample in range(n_samples):
             )
 
 # Save PTR/coverage dataframes once
-<<<<<<< HEAD
-ptr_df.to_csv(f"{path}/ptrs.tsv", sep="\t")
-cov_df.to_csv(f"{path}/coverages.tsv", sep="\t")
-otu_df.to_csv(f"{path}/16s_otus.tsv", sep="\t")
-=======
 ptr_df.pivot('genome', 'sample', 'ptr').to_csv(f"{path}/ptrs.tsv", sep="\t")
 cov_df.pivot('genome', 'sample', 'reads').to_csv(f"{path}/coverages.tsv", sep="\t")
 otu_df.pivot('otu', 'sample', 'reads').to_csv(f"{path}/16s_otus.tsv", sep="\t")
->>>>>>> 7067b4b7c4cafad38890f3faebadb3c17bab0dde
