@@ -261,6 +261,7 @@ def simulate(
             seq = sequences[genome]
 
             # This aggregates all reads into a single list to be shuffled later
+            # TODO: Add the option of calling generate_reads_contig instead
             reads, rna_reads = generate_reads(
                 sequence=seq,
                 n_reads=n_reads,
@@ -373,3 +374,18 @@ def simulate_from_ids(
     # This only works for complete genomes
 
     return simulate(db=db, sequences=sequences, **simulate_args)
+
+def generate_reads_contig(
+    sequences : list,
+    n_reads : int,
+    db : pd.DataFrame = None,
+    read_length : int = 300,
+    ptr : float = 1,
+    oor : int = 0,
+    name : str = "") -> list:
+    """
+    TODO: Develop code for simulating reads from contig. Note: we can't assume we know OOR
+
+    Should it use OOR and genome length where possible?
+    """
+    pass

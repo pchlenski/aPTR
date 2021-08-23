@@ -1,5 +1,5 @@
 """
-Use this script to simulate reads from a bunch of samples.
+Use this script to simulate reads from a bunch of draft genomes.
 
 Only need to edit three variables:
     n_samples
@@ -21,7 +21,6 @@ scale = 1e5
 
 # Simulation code
 db = pd.read_pickle("./data/db.pkl")
-complete_genomes = db[db['n_contigs'] == 1]['genome'].unique()
 path = f"./out/{uuid4()}"
 os.mkdir(path)
 
@@ -31,7 +30,11 @@ cov_df = pd.DataFrame(columns=["genome", "sample", "reads"])
 otu_df = pd.DataFrame(columns=["otu", "sample", "reads"])
 
 for sample in range(n_samples):
-    genomes = np.random.choice(complete_genomes, n_genomes_per_sample)
+    genomes = np.random.choice(db['genome'].unique(), n_genomes_per_sample)
+
+    # Resolve contig order and origin of replication
+    # TODO
+
     samples, ptrs, coverages, otus = util.simulation.simulate_from_ids(
         db=db, 
         ids=genomes, 
