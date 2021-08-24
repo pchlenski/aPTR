@@ -62,6 +62,11 @@ for sample in range(n_samples):
             )
 
 # Save PTR/coverage dataframes once
-pd.pivot_table(ptr_df, index=['genome'], columns=['sample'], values=['ptr']).to_csv(f"{path}/ptrs.tsv", sep="\t")
-pd.pivot_table(cov_df, index=['genome'], columns=['sample'], values=['reads']).to_csv(f"{path}/coverages.tsv", sep="\t")
-pd.pivot_table(otu_df, index=['otu'], columns=['sample'], values=['reads']).to_csv(f"{path}/16s_otus.tsv", sep="\t")
+ptr_df.to_pickle(f"{path}/ptr.pkl")
+cov_df.to_pickle(f"{path}/cov.pkl")
+otu_df.to_pickle(f"{path}/otu.pkl")
+
+# Generate tables
+ptr_df.pivot('genome', 'sample', 'ptr').to_csv(f"{path}/ptrs.tsv", sep="\t")
+cov_df.pivot('genome', 'sample', 'reads').to_csv(f"{path}/coverages.tsv", sep="\t")
+otu_df.pivot('otu', 'sample', 'reads').to_csv(f"{path}/16s_otus.tsv", sep="\t")
