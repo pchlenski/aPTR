@@ -31,7 +31,7 @@ cov_df = pd.DataFrame(columns=["genome", "sample", "reads"])
 otu_df = pd.DataFrame(columns=["otu", "sample", "reads"])
 
 for sample in range(n_samples):
-    genomes = np.random.choice(complete_genomes, n_genomes_per_sample)
+    genomes = np.random.choice(complete_genomes, n_genomes_per_sample, replace=False)
     samples, ptrs, coverages, otus = util.simulation.simulate_from_ids(
         db=db, 
         ids=genomes, 
