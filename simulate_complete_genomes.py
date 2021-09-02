@@ -15,9 +15,9 @@ import pandas as pd
 import numpy as np
 
 # Edit these variables only
-n_samples = 100
-n_genomes_per_sample = 20
-scale = 1e5
+n_samples = 10
+n_genomes_per_sample = 10
+scale = 1e3
 
 # Simulation code
 db = pd.read_pickle("./data/db.pkl")

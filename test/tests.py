@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from util.simulation import *
+from src.db import *
 
 def test_1():
     """
@@ -106,3 +107,18 @@ def test_5():
         suffix='.fna.gz',
         n_samples=2,
     )
+
+def test_6():
+    """
+    Generate an OTU matrix
+    """
+
+    # db = pd.read_pickle('./data/db.pkl')
+    # print(db.columns)
+
+    db = RnaDB("./data/db.pkl", "./data/collisions.pkl")
+
+    ptrs = pd.read_table("/Users/phil/Columbia/16s-ptr/out/complete/ptrs.tsv", index_col=0)
+    covs = pd.read_table("/Users/phil/Columbia/16s-ptr/out/complete/coverages.tsv", index_col=0)
+
+    generate_otu_matrix(db, ptrs, covs)

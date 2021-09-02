@@ -6,11 +6,14 @@ import gzip
 from uuid import uuid4
 import os
 from pprint import pprint
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 
 from Bio import SeqIO
+
+from src.db import RnaDB
 
 def ptr_curve(
     size : int,
@@ -279,6 +282,7 @@ def simulate(
 
     return samples, ptrs, coverages, otu_matrix
 
+''' This may be unnecessary now...
 def write_output(
     samples : list,
     ptrs : np.array = None,
@@ -327,7 +331,7 @@ def write_output(
                     f.write("\n".join(sample).encode())
 
             print(f"Finished writing sample {idx} to {path}{prefix}{idx}.fastq.gz")
-
+'''
 
 def simulate_from_ids(
     db : pd.DataFrame,
@@ -389,3 +393,94 @@ def generate_reads_contig(
     Should it use OOR and genome length where possible?
     """
     pass
+
+def generate_otu_matrix(
+    db : pd.DataFrame,
+    ptrs : pd.DataFrame, 
+    coverages : pd.DataFrame,
+    scale : float = 1) -> pd.DataFrame:
+    """
+    Given coverages and PTRs, generate an OTU matrix
+
+    TODO: fix this up
+    """
+    # old_sample = None
+    # old_counter = None
+    # counters = []
+
+    n_rows, n_cols = ptrs.shape
+
+    if ptrs.shape != coverages.shape:
+        raise Exception("Coverage and PTR shapes do not match!")
+
+    out = pd.DataFrame(columns=["otu", "sample", "reads"])
+    for row_idx in range(n_rows):
+        gid_ptr = ptrs.index[row_idx]
+        gid_cov = coverages.index[row_idx]
+
+        # Check that genome IDs match
+        if gid_ptr != gid_cov:
+            raise Exception(f"ID mismatch: '{gid_ptr}' != '{gid_cov}'")
+
+        # Check coverage
+        for col_idx in range(n_cols):
+            if "genome" not in [ptrs.columns[col_idx], coverages.columns[col_idx]]:
+                coverage = coverages.iloc[row_idx, col_idx]
+
+                if coverage > 0:
+                    # Get relevant md5s
+                    md5s = db.genome_to_md5s(gid_ptr)
+
+
+
+    # # for idx, row in inputs.iterrows():
+    # for row_idx in range(n_rows):
+    #     # get genome info
+    #     ptr_row = ptrs.iloc[row_idx]
+    #     cov_row = coverages.iloc[row_idx]
+
+    #     print("PTR ROW", ptr_row)
+    #     print("COV ROW", cov_row)
+
+    #     ptr_id = ptr_row["genome"]
+    #     cov_id = cov_row["genome"]
+    #     if ptr_id == cov_id:
+    #         gid = ptr_row['genome']
+    #     else:
+    #         raise Exception(f"Disagreement between matrices on genome: {ptr_id} != {cov_id}")
+
+    #     tmp_tbl = db[db["genome"] == gid]
+    #     # n_reads = row["Reads"]
+    #     print("table size:", len(tmp_tbl))
+    #     length  = tmp_tbl["size"].iloc[0]
+    #     oor     = tmp_tbl["oor_position"].iloc[0]
+
+    #     # get ptr curve; probs of each 16s
+    #     for col_idx in range(n_cols):
+    #         n_reads = cov_row.iloc[col_idx]
+
+    #         starts      = np.array(range(length))
+    #         curve       = ptr_curve(starts, ptr_row.iloc[col_idx], oor)
+    #         starts_16s  = list(tmp_tbl['16s_position'])
+    #         start_probs = curve[starts_16s]
+    #         start_probs /= sum(start_probs) # renormalize
+
+    #         # sample
+    #         bins    = list(tmp_tbl['Sequence md5'])
+    #         sample  = np.random.choice(bins, size=n_reads, p=start_probs)
+    #         counter = Counter(sample)
+
+    #         # add together
+    #         if row["Species"] == old_sample:
+    #             old_counter += counter
+    #         else:  # moving on to a new sample
+    #             print(row["Species"])
+    #             counters += [counter]
+    #             old_counter = counter
+    #             old_sample  = row["Species"]
+
+    # reads = pd.DataFrame(counters).transpose()
+    # reads = reads / reads.sum(axis=0)
+    # return reads
+
+

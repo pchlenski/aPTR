@@ -5,3 +5,4 @@ from test.tests import *
 # test_3()
 # test_4()
 # test_5()
+test_6()

@@ -10,7 +10,6 @@ from src.solver import solver
 my_db = pd.read_pickle("./data/db.pkl")
 my_collisions = pd.read_pickle("./data/collisions.pkl")
 my_otus = pd.read_table("./out/6bc6c418-9e20-4b2b-93a5-603a912a128d/16s_otus.tsv", dtype={0: str})
-# otus = pd.read_table("./out/eumaeus/complete_1e5/16s_otus.tsv")
 my_otus = my_otus.set_index('otu')
 
 my_true_ptrs = pd.read_table("./out/6bc6c418-9e20-4b2b-93a5-603a912a128d/ptrs.tsv", dtype={0: str})
@@ -21,6 +20,8 @@ def md5_to_genomes(
     database : pd.DataFrame,
     collisions : pd.DataFrame) -> (list, list):
     """
+    TODO: Remove this (it is now a method of the RnaDatabase class)
+
     Given an OTU's 16S md5 hash, return all genomes in which it is contained
 
     Args:
@@ -217,6 +218,8 @@ def solve_matrix(
 
     return out
 
+
+# Solve PTRs as provided in 'otus.tsv':
 ptrs = solve_matrix(my_db, my_otus, my_collisions, my_true_ptrs)
 plt.matshow(ptrs.pivot('genome', 'sample', 'err'))
 plt.colorbar()
