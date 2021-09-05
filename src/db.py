@@ -6,17 +6,75 @@ import pandas as pd
 
 class RnaDB():
     """
-    TODO
+    A database of diverged 16S RNA sequences and genomes, plus utility functions.
+
+    Attributes:
+    -----------
+    db:
+        A database of 16S sequences and locations
+    collisions:
+        A database of 16S sequences which collide with DB
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         db_path : str,
         collisions_path : str) -> None:
         """
         Initialize DB: load databases
+
+        Args:
+        -----
+        db_path:
+            Path to 16S database.
+        collisions:
+            Path to collisions database.
+
+        Returns:
+        --------
+        An RnaDB object loaded with 16S and collision databases loaded.
+
+        Raises:
+        -------
+        None.
         """
         self.db = pd.read_pickle(db_path)
         self.collisions = pd.read_pickle(collisions_path)
+
+    def __getitem__(
+        self, 
+        gid : str) -> pd.DataFrame:
+        """
+        Get a subdatabase by genome ID
+
+        Args:
+        -----
+        gid:
+            String. A genome ID or contig ID.
+
+        Returns:
+        --------
+        A Pandas dataframe filtered by genome ID.
+
+        Raises:
+        --------
+        TypeError:
+            If 'gid' argument is not a string.
+        ValueError:
+            If 'gid' argument does not match any genomes or contigs
+        """
+
+        if not isinstance(gid, str):
+            raise TypeError(f"ID should be str, not {type(gid)}")
+
+        # TODO: check collisions too
+
+        if gid in db["genome"]:
+            return self.db[self.db["genome"] == gid]
+        elif gid in db["contig"]:
+            return self.db[self.db["contig"] == gid]
+        else:
+            raise ValueError(f"No contig or genome matches for '{gid}'")
 
     def md5_to_genomes(self, md5 : str) -> (list, list):
         """
@@ -29,13 +87,14 @@ class RnaDB():
 
         Returns:
         --------
-        The following two lists:
-        * db_matches: a list of genome IDs matching this OTU in 'database'
-        * db_collisions: a list of genome IDs matching this OTU in 'collisions'
+        db_matches:
+            A list of genome IDs matching this OTU in 'database.'
+        db_collisions:
+            A list of genome IDs matching this OTU in 'collisions.'
 
         Raises:
         -------
-        TODO
+        None.
         """
 
         # Check DB
@@ -58,12 +117,14 @@ class RnaDB():
         Returns:
         --------
         The following two lists:
-        * db_matches: a list of md5s matching this genome ID in 'database'
-        * db_collisions: a list of md5s matching this genome ID in 'collisions'
+        db_matches:
+            A list of md5s matching this genome ID in 'database.'
+        db_collisions:
+            A list of md5s matching this genome ID in 'collisions.'
 
         Raises:
         -------
-        TODO
+        None.
         """
 
         # Check DB

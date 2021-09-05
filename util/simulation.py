@@ -3,9 +3,6 @@ Scripts to simulate read coverage from a known PTR
 """
 
 import gzip
-from uuid import uuid4
-import os
-from pprint import pprint
 from collections import Counter
 
 import numpy as np
@@ -18,7 +15,7 @@ from src.db import RnaDB
 def ptr_curve(
     size : int,
     ptr : float,
-    oor : int = 0) -> np.ndarray:
+    oor : int = 0) -> (np.ndarray, np.ndarray):
     """
     Given an array of x-values and a PTR, produce a plausible PTR curve.
     This function assumes that origin of replication is at x=0.
@@ -51,9 +48,18 @@ def ptr_curve(
     # Check size is positive
     if size < 1:
         raise Exception("Size must be a positive integer")
+
     # Check 0 < OOR < size
     if oor > size or oor < 0:
         raise Exception("OOR must be in range 0 < OOR < size")
+
+    # Fix NaN:
+    if np.isnan(oor):
+        oor = 0
+
+    # Coerce OOR and size to int
+    size = int(size)
+    oor = int(oor)
 
     # Initialize array in [0, 1) interval
     x_array = np.linspace(0, 1, size)
@@ -71,7 +77,7 @@ def ptr_curve(
     # Return array, adjusting for OOR position
     return x_original, np.append(y_array[oor:], y_array[:oor])
 
-def rc(seq):
+def reverse_complement(seq):
     """
     Returns the reverse complement of a sequence.
 
@@ -155,7 +161,7 @@ def generate_reads(
     new_seq = new_seq.lower() # just to distinguish between rc and forward strand
 
     # Sample starts from the ptr-adjusted distribution
-    x, probs = ptr_curve(seq_length, ptr, oor)
+    _x, probs = ptr_curve(seq_length, ptr, oor)
     positions = range(seq_length)
 
     starts = np.random.choice(positions, p=probs, size=n_reads)
@@ -166,15 +172,11 @@ def generate_reads(
         # Get the read
         end = start + read_length
         read = str(new_seq[start:end])
-
+ 
         # Add reverse complement --- patch #2 04.07.2021
         if np.random.rand() > .5:
-            read = rc(read)
-
-            # Need to change indexing
-            old_start = start
-            start = end
-            end = old_start
+            read = reverse_complement(read)
+            start, end = end, start
 
         # Check for RNA membership --- patch #3 08.22.2021
         dists = [np.abs(rna - start) for rna in rnas]
@@ -200,7 +202,7 @@ def simulate(
     n_samples : int = 10,
     read_length : int = 300,
     scale : float = 1e5,
-    verbose : bool = True) -> (list, np.array, np.array):
+    verbose : bool = True) -> (list, np.array, np.array, list):
     """
     Given known PTRs and coverages, generate synthetic reads.
 
@@ -208,11 +210,33 @@ def simulate(
 
     Args:
     -----
-    TODO
+    db:
+        A dataframe containing per-contig 16S sequence and position information
+    sequences:
+        Dict. A dict mapping genome IDs to lists of contig sequences.
+    ptrs:
+        Numpy array. A #{genomes} x #{samples} array of true PTRs.
+    coverages:
+        Numpy array. A #{genomes} x #{samples} array of read counts.
+    n_samples:
+        Float. How many samples to generate.
+    read_length:
+        Integer. How many base pairs to make each read.
+    Scale:
+        Float. Scaling factor for exponential distribution during read sampling.
+    Verbose:
+        Boolean. If true, will report on data generation process.
 
     Returns:
     --------
-    TODO
+    samples:
+        A list of samples. Each sample is a list of strings, each of which is a single read.
+    ptrs:
+        Numpy array. A #{genomes} x #{samples} array of true PTRs. If the 'ptrs' argument is set, returns that.
+    coverages:
+        Numpy array. A #{genomes} x #{samples} array of read counts. If the 'coveragees' argument is set, returns that.
+    otu_matrix:
+        Numpy array. A #{OTUs} x #{samples} array of read counts, downsampled from all reads.
 
     Raises:
     -------
@@ -282,73 +306,31 @@ def simulate(
 
     return samples, ptrs, coverages, otu_matrix
 
-''' This may be unnecessary now...
-def write_output(
-    samples : list,
-    ptrs : np.array = None,
-    coverages : np.array = None,
-    path : str = None,
-    prefix : str = 'S_',
-    use_gzip : bool = True) -> None:
-    """
-    Write a set of reads as a fastq.gz file
-
-    Args:
-    -----
-    TODO
-
-    Returns:
-    --------
-    None (writes to disk)
-
-    Raises:
-    TODO
-    """
-
-    # Set path by UUID if needed
-    if path is None:
-        path = f"./out/{uuid4()}/"
-        os.mkdir(path)
-
-    # Save PTRs if given
-    if ptrs is not None:
-        np.savetxt(f"{path}/ptrs.tsv", ptrs, delimiter="\t")
-        print(f"Finished writing PTRs to {path}/ptrs.tsv")
-
-    # Save coverages if given
-    if coverages is not None:
-        np.savetxt(f"{path}/coverages.tsv", coverages, delimiter="\t")
-        print(f"Finished writing coverages to {path}/coverages.tsv")
-
-    # Save reads
-    if samples is not None:
-        for idx, sample in enumerate(samples):
-            if use_gzip:
-                with gzip.open(f"{path}{prefix}{idx}.fastq.gz", "wb") as f:
-                    f.write("\n".join(sample).encode())
-            else:
-                with open(f"{path}{prefix}{idx}.fastq", "wb") as f:
-                    f.write("\n".join(sample).encode())
-
-            print(f"Finished writing sample {idx} to {path}{prefix}{idx}.fastq.gz")
-'''
-
 def simulate_from_ids(
     db : pd.DataFrame,
     ids : list,
     fasta_path : str,
     suffix : str = '.fna.gz',
-    **simulate_args) -> (list, np.ndarray, np.ndarray):
+    **simulate_args) -> (list, np.ndarray, np.ndarray, list):
     """
     Given a list of IDs, simulate reads.
 
     Args:
     -----
-    TODO
+    db:
+        A dataframe containing per-contig 16S sequence and position information
+    ids:
+        A list of genome IDs for which to generate reads.
+    fasta_path:
+        String. The path to the directory containing fasta files.
+    suffix:
+        Sring. The suffix for fasta files.
+    **simulate_args:
+        Arguments for the simulate() function
 
     Returns:
     --------
-    TODO
+    Same outputs as simulate()
 
     Raises:
     -------
@@ -392,28 +374,43 @@ def generate_reads_contig(
 
     Should it use OOR and genome length where possible?
     """
-    pass
+    raise NotImplementedError
 
 def generate_otu_matrix(
-    db : pd.DataFrame,
-    ptrs : pd.DataFrame, 
+    db : RnaDB,
+    ptrs : pd.DataFrame,
     coverages : pd.DataFrame,
     scale : float = 1) -> pd.DataFrame:
     """
-    Given coverages and PTRs, generate an OTU matrix
+    Given coverages and PTRs, generate an OTU matrix with custom scaled coverage.
 
-    TODO: fix this up
+    Args:
+    -----
+    db:
+        An RnaDB object.
+    ptrs:
+        Numpy array. A #{genomes} x #{samples} array of true PTRs.
+    coverages:
+        Numpy array. A #{genomes} x #{samples} array of read counts.
+    scale:
+        Float. Multiplier for read counts in coverages matrix.
+
+    Returns:
+    --------
+    A #{genomes} x #{samples} dataframe of 16S read counts.
+
+    Raises:
+    -------
+    TODO
     """
-    # old_sample = None
-    # old_counter = None
-    # counters = []
-
     n_rows, n_cols = ptrs.shape
 
     if ptrs.shape != coverages.shape:
         raise Exception("Coverage and PTR shapes do not match!")
 
-    out = pd.DataFrame(columns=["otu", "sample", "reads"])
+    # out = pd.DataFrame(columns=["otu", "sample", "reads"])
+    out = []
+
     for row_idx in range(n_rows):
         gid_ptr = ptrs.index[row_idx]
         gid_cov = coverages.index[row_idx]
@@ -422,65 +419,31 @@ def generate_otu_matrix(
         if gid_ptr != gid_cov:
             raise Exception(f"ID mismatch: '{gid_ptr}' != '{gid_cov}'")
 
+        genome_db = db[gid_ptr]
+        size = genome_db.iloc[0]["size"]
+        oor = genome_db.iloc[0]["oor_position"]
+
         # Check coverage
         for col_idx in range(n_cols):
-            if "genome" not in [ptrs.columns[col_idx], coverages.columns[col_idx]]:
-                coverage = coverages.iloc[row_idx, col_idx]
+            # if "genome" not in [ptrs.columns[col_idx], coverages.columns[col_idx]]:
+            ptr = ptrs.iloc[row_idx, col_idx]
+            coverage = coverages.iloc[row_idx, col_idx]
 
-                if coverage > 0:
-                    # Get relevant md5s
-                    md5s = db.genome_to_md5s(gid_ptr)
+            if coverage > 0:
+                starts = list(genome_db["16s_position"])
+                _x, curve = ptr_curve(size, ptr, oor)
 
+                # Downsample curve and renormalize
+                probs = curve[starts]
+                probs /= np.sum(probs)
 
+                # Sample
+                md5s = list(genome_db["16s_md5"])
+                sample = np.random.choice(md5s, size=int(coverage*scale), p=probs)
 
-    # # for idx, row in inputs.iterrows():
-    # for row_idx in range(n_rows):
-    #     # get genome info
-    #     ptr_row = ptrs.iloc[row_idx]
-    #     cov_row = coverages.iloc[row_idx]
+                # Output to dataframe
+                counter = Counter(sample)
+                for key in counter:
+                    out.append({"otu": key, "sample": col_idx, "count": int(counter[key])})
 
-    #     print("PTR ROW", ptr_row)
-    #     print("COV ROW", cov_row)
-
-    #     ptr_id = ptr_row["genome"]
-    #     cov_id = cov_row["genome"]
-    #     if ptr_id == cov_id:
-    #         gid = ptr_row['genome']
-    #     else:
-    #         raise Exception(f"Disagreement between matrices on genome: {ptr_id} != {cov_id}")
-
-    #     tmp_tbl = db[db["genome"] == gid]
-    #     # n_reads = row["Reads"]
-    #     print("table size:", len(tmp_tbl))
-    #     length  = tmp_tbl["size"].iloc[0]
-    #     oor     = tmp_tbl["oor_position"].iloc[0]
-
-    #     # get ptr curve; probs of each 16s
-    #     for col_idx in range(n_cols):
-    #         n_reads = cov_row.iloc[col_idx]
-
-    #         starts      = np.array(range(length))
-    #         curve       = ptr_curve(starts, ptr_row.iloc[col_idx], oor)
-    #         starts_16s  = list(tmp_tbl['16s_position'])
-    #         start_probs = curve[starts_16s]
-    #         start_probs /= sum(start_probs) # renormalize
-
-    #         # sample
-    #         bins    = list(tmp_tbl['Sequence md5'])
-    #         sample  = np.random.choice(bins, size=n_reads, p=start_probs)
-    #         counter = Counter(sample)
-
-    #         # add together
-    #         if row["Species"] == old_sample:
-    #             old_counter += counter
-    #         else:  # moving on to a new sample
-    #             print(row["Species"])
-    #             counters += [counter]
-    #             old_counter = counter
-    #             old_sample  = row["Species"]
-
-    # reads = pd.DataFrame(counters).transpose()
-    # reads = reads / reads.sum(axis=0)
-    # return reads
-
-
+    return pd.DataFrame(out).pivot("otu", "sample", "count")

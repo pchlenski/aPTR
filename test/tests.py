@@ -118,7 +118,16 @@ def test_6():
 
     db = RnaDB("./data/db.pkl", "./data/collisions.pkl")
 
-    ptrs = pd.read_table("/Users/phil/Columbia/16s-ptr/out/complete/ptrs.tsv", index_col=0)
-    covs = pd.read_table("/Users/phil/Columbia/16s-ptr/out/complete/coverages.tsv", index_col=0)
+    ptrs = pd.read_table(
+        "/Users/phil/Columbia/16s-ptr/out/complete/ptrs.tsv", 
+        dtype={0: str}
+    )
+    ptrs = ptrs.set_index("genome")
+    covs = pd.read_table(
+        "/Users/phil/Columbia/16s-ptr/out/complete/coverages.tsv", 
+        dtype={0: str}
+    )
+    covs = covs.set_index("genome")
 
-    generate_otu_matrix(db, ptrs, covs)
+    matrix = generate_otu_matrix(db, ptrs, covs)
+    print(matrix)
