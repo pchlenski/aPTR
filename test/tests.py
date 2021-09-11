@@ -109,7 +109,7 @@ def test_5():
         n_samples=2,
     )
 
-def test_6(dd={"./data/"}, ex_dir={"./out/complete/"}):
+def test_6(dd="./data/", ex_dir="./out/complete/", scale=1):
     """
     Generate an OTU matrix
     """
@@ -125,5 +125,5 @@ def test_6(dd={"./data/"}, ex_dir={"./out/complete/"}):
     covs = pd.read_table(f"{ex_dir}coverages.tsv", dtype={0: str})
     covs = covs.set_index("genome")
 
-    matrix = generate_otu_matrix(db, ptrs, covs, scale=10)
+    matrix = generate_otu_matrix(db, ptrs, covs, scale=scale)
     print(matrix)
