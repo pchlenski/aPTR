@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from util.simulation import *
 from src.db import *
+import timeit
 
 def test_1():
     """
@@ -129,5 +130,5 @@ def test_6():
     )
     covs = covs.set_index("genome")
 
-    matrix = generate_otu_matrix(db, ptrs, covs)
+    matrix = generate_otu_matrix(db, ptrs, covs, scale=10)
     print(matrix)
