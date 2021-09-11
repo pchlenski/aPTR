@@ -109,7 +109,7 @@ def test_5():
         n_samples=2,
     )
 
-def test_6():
+def test_6(dd={"./data/"}, ex_dir={"./out/complete/"}):
     """
     Generate an OTU matrix
     """
@@ -117,17 +117,12 @@ def test_6():
     # db = pd.read_pickle('./data/db.pkl')
     # print(db.columns)
 
-    db = RnaDB("./data/db.pkl", "./data/collisions.pkl")
+    db = RnaDB(f"{dd}db.pkl", f"{dd}collisions.pkl")
 
-    ptrs = pd.read_table(
-        "/Users/phil/Columbia/16s-ptr/out/complete/ptrs.tsv", 
-        dtype={0: str}
-    )
+    ptrs = pd.read_table(f"{ex_dir}ptrs.tsv", dtype={0: str})
     ptrs = ptrs.set_index("genome")
-    covs = pd.read_table(
-        "/Users/phil/Columbia/16s-ptr/out/complete/coverages.tsv", 
-        dtype={0: str}
-    )
+
+    covs = pd.read_table(f"{ex_dir}coverages.tsv", dtype={0: str})
     covs = covs.set_index("genome")
 
     matrix = generate_otu_matrix(db, ptrs, covs, scale=10)
