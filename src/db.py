@@ -41,16 +41,14 @@ class RnaDB():
         self.db = pd.read_pickle(db_path)
         self.collisions = pd.read_pickle(collisions_path)
 
-    def __getitem__(
-        self, 
-        gid : str) -> pd.DataFrame:
+    def __getitem__(self, gid : str) -> pd.DataFrame:
         """
         Get a subdatabase by genome ID
 
         Args:
         -----
         gid:
-            String. A genome ID or contig ID.
+            String or list of strings. A genome ID or contig ID.
 
         Returns:
         --------
@@ -64,15 +62,21 @@ class RnaDB():
             If 'gid' argument does not match any genomes or contigs
         """
 
-        if not isinstance(gid, str):
+        if isinstance(gid, str):
+            gid = [gid]
+        elif isinstance(gid, list):
+            for element in list:
+                if not isinstance(element, str):
+                    raise TypeError(f"ID list contains non-string element {element}")
+        else:
             raise TypeError(f"ID should be str, not {type(gid)}")
 
         # TODO: check collisions too
 
-        if gid in db["genome"]:
-            return self.db[self.db["genome"] == gid]
-        elif gid in db["contig"]:
-            return self.db[self.db["contig"] == gid]
+        if self.db["genome"].isin(gid).any():
+            return self.db[self.db["genome"].isin(gid)]
+        elif self.db["contig"].isin(gid).any():
+            return self.db[self.db["contig"].isin(gid)]
         else:
             raise ValueError(f"No contig or genome matches for '{gid}'")
 
