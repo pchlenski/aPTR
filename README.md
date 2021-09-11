@@ -1,4 +1,4 @@
-# 16s-ptr
+# aPTR: amplicon peak-to-trough ratio
 Microbial dynamics inferred from single-sample amplicon sequencing
 
 ## Generating tables
