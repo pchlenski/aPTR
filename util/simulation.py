@@ -380,7 +380,8 @@ def generate_otu_matrix(
     db : RnaDB,
     ptrs : pd.DataFrame,
     coverages : pd.DataFrame,
-    scale : float = 1) -> pd.DataFrame:
+    scale : float = 1,
+    verbose : bool = False) -> pd.DataFrame:
     """
     Given coverages and PTRs, generate an OTU matrix with custom scaled coverage.
 
@@ -394,6 +395,8 @@ def generate_otu_matrix(
         Numpy array. A #{genomes} x #{samples} array of read counts.
     scale:
         Float. Multiplier for read counts in coverages matrix.
+    verbose:
+        Boolean. Prints progress updates if true.
 
     Returns:
     --------
@@ -412,6 +415,9 @@ def generate_otu_matrix(
     out = []
 
     for row_idx in range(n_rows):
+        if verbose == True:
+            print(f"Row: {row_idx}")
+
         gid_ptr = ptrs.index[row_idx]
         gid_cov = coverages.index[row_idx]
 
