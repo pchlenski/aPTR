@@ -291,7 +291,7 @@ def solve_genome(
     ptr = peak / trough
 
     # Get true PTR
-    if true_ptrs:
+    if true_ptrs is not None:
         try:
             true_ptr = true_ptrs.loc[genome_id, sample_id]
         except KeyError as e:
