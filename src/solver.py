@@ -316,7 +316,8 @@ def solve_sample(
 def solve_matrix(
     database : RnaDB,
     otus : pd.DataFrame,
-    true_ptrs : pd.DataFrame = None) -> pd.DataFrame:
+    true_ptrs : pd.DataFrame = None,
+    max_error : float = np.inf) -> pd.DataFrame:
     """
     Given a 16S db, OTU read/abundance matrix, and true PTR values (optional), esimate PTRs.
 
@@ -328,6 +329,8 @@ def solve_matrix(
         Pandas DataFrame. A matrix of 16S OTU read/abundance counts.
     true_ptrs:
         Pandas DataFrame. A matrix of true PTR values, if known.
+    max_error:
+        Float. Used to trim extreme error values (experimental).
 
     Returns:
     --------
@@ -351,6 +354,6 @@ def solve_matrix(
 
     out['err'] = np.abs(out['ptr'] - out['true_ptr'])
     # Cut off error threshold
-    out['err'] = out['err'].apply(lambda x: np.min([x,5]))
+    out['err'] = out['err'].apply(lambda x: np.min([x, max_error]))
 
     return out
