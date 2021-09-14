@@ -261,7 +261,7 @@ def solve_genome(
             true_ptr = true_ptrs.loc[genome_id, sample_id]
         except KeyError as e:
             true_ptr = np.nan
-            print(e)
+            print(f"True PTR evaluation: Bypassing KeyError: {e}")
     else:
         true_ptr = None
 
