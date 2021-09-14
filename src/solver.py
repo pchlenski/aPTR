@@ -291,11 +291,12 @@ def solve_genome(
     ptr = peak / trough
 
     # Get true PTR
-    try:
-        true_ptr = true_ptrs.loc[genome_id, sample_id]
-    except KeyError as e:
-        true_ptr = np.nan
-        print(e)
+    if true_ptrs:
+        try:
+            true_ptr = true_ptrs.loc[genome_id, sample_id]
+        except KeyError as e:
+            true_ptr = np.nan
+            print(e)
 
     return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "true_ptr" : true_ptr}
 
