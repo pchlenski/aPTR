@@ -299,7 +299,7 @@ def solve_sample(
     # Build up lists of genomes and md5s
     for md5 in otus.index:
         if otus.loc[md5, sample_id] > 0:
-            match, coll = database.md5_to_genomes(md5, database=database)
+            match, coll = database.md5_to_genomes(md5)
 
             # Skip collisions for now... these are overdetermined
             if coll:
