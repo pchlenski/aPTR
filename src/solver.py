@@ -12,6 +12,8 @@ import warnings
 
 from scipy.optimize import fsolve
 
+from src.db import RnaDB
+
 def solver(
     x_values : np.array, 
     mappings : np.array,
@@ -190,43 +192,6 @@ def solver(
 
     return results
 
-def md5_to_genomes(
-    md5 : str,
-    database : pd.DataFrame,
-    collisions : pd.DataFrame) -> (list, list):
-    """
-    TODO: Remove this (it is now a method of the RnaDatabase class)
-
-    Given an OTU's 16S md5 hash, return all genomes in which it is contained
-
-    Args:
-    -----
-    md5:
-        String. The md5 hash of a given 16S sequence.
-    database:
-        Pandas DataFrame. A matrix of 16S positions and sequences.
-    collisions:
-        Pandas DataFrame. A matrix of conflicting 16S sequences (spoiler genes).
-
-    Returns:
-    --------
-    The following two lists:
-    * db_matches: a list of genome IDs matching this OTU in 'database'
-    * db_collisions: a list of genome IDs matching this OTU in 'collisions'
-
-    Raises:
-    -------
-    TODO
-    """
-
-    # Check DB
-    db_matches = database[database['16s_md5'] == md5]['genome'].unique()
-
-    # Check collisions
-    db_collisions = collisions[collisions['16s_md5'] == md5]['genome'].unique()
-
-    return list(db_matches), list(db_collisions)
-
 def solve_genome(
     genome_id : str,
     sample_id : str,
@@ -258,7 +223,7 @@ def solve_genome(
     TODO
     """
     # Build up x_values
-    db_matched = database[database['genome'] == genome_id]
+    db_matched = database[genome_id]
     x_positions = db_matched['16s_position'] / db_matched['size']
 
     # Build up mappings
@@ -306,7 +271,6 @@ def solve_sample(
     sample_id : str,
     database : pd.DataFrame,
     otus : pd.DataFrame,
-    collisions : pd.DataFrame,
     true_ptrs : pd.DataFrame) -> list:
     """
     Given a sample name, solve all available 16S systems.
@@ -316,11 +280,9 @@ def solve_sample(
     sample_id:
         String. The name of a given sample. Used for indexing into OTU matrix.
     database:
-        Pandas DataFrame. A matrix of 16S positions and sequences.
+        RnaDB object. A matrix of 16S positions and sequences.
     otus:
         Pandas DataFrame. A matrix of 16S OTU read/abundance counts.
-    collisions:
-        Pandas DataFrame. A matrix of conflicting 16S sequences (spoiler genes).
     true_ptrs:
         Pandas DataFrame. A matrix of true PTR values, if known.
 
@@ -337,7 +299,7 @@ def solve_sample(
     # Build up lists of genomes and md5s
     for md5 in otus.index:
         if otus.loc[md5, sample_id] > 0:
-            match, coll = md5_to_genomes(md5, database=database, collisions=collisions)
+            match, coll = database.md5_to_genomes(md5, database=database)
 
             # Skip collisions for now... these are overdetermined
             if coll:
@@ -352,9 +314,8 @@ def solve_sample(
     return out
 
 def solve_matrix(
-    database : pd.DataFrame,
+    database : RnaDB,
     otus : pd.DataFrame,
-    collisions : pd.DataFrame,
     true_ptrs : pd.DataFrame = None) -> pd.DataFrame:
     """
     Given a 16S db, OTU read/abundance matrix, and true PTR values (optional), esimate PTRs.
@@ -362,11 +323,9 @@ def solve_matrix(
     Args:
     -----
     database:
-        Pandas DataFrame. A matrix of 16S positions and sequences.
+        RnaDB object. A matrix of 16S positions and sequences.
     otus:
         Pandas DataFrame. A matrix of 16S OTU read/abundance counts.
-    collisions:
-        Pandas DataFrame. A matrix of conflicting 16S sequences (spoiler genes).
     true_ptrs:
         Pandas DataFrame. A matrix of true PTR values, if known.
 
@@ -387,7 +346,7 @@ def solve_matrix(
 
     # For each column, build up x_values, mappings, coverages; send to solver
     for column in otus.columns:
-        results = solve_sample(column, database=database, otus=otus, collisions=collisions, true_ptrs=true_ptrs)
+        results = solve_sample(column, database=database, otus=otus, true_ptrs=true_ptrs)
         out = out.append(results, ignore_index=True)
 
     out['err'] = np.abs(out['ptr'] - out['true_ptr'])
