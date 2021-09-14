@@ -41,6 +41,9 @@ class RnaDB():
         self.db = pd.read_pickle(db_path)
         self.collisions = pd.read_pickle(collisions_path)
 
+        self.genomes = list(self.db["genome"].unique())
+        self.md5s = list(self.db["16s_md5"].unique())
+
     def __getitem__(self, gid : str) -> pd.DataFrame:
         """
         Get a subdatabase by genome ID
