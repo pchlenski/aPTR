@@ -411,7 +411,6 @@ def generate_otu_matrix(
     if ptrs.shape != coverages.shape:
         raise Exception("Coverage and PTR shapes do not match!")
 
-    # out = pd.DataFrame(columns=["otu", "sample", "reads"])
     out = []
 
     for row_idx in range(n_rows):
@@ -452,4 +451,7 @@ def generate_otu_matrix(
                 for key in counter:
                     out.append({"otu": key, "sample": col_idx, "count": int(counter[key])})
 
-    return pd.DataFrame(out).pivot("otu", "sample", "count")
+    pivot = pd.DataFrame(out).pivot("otu", "sample", "count")
+    pivot.columns = ptrs.columns
+
+    return pivot
