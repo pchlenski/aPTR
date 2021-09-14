@@ -12,7 +12,7 @@ import warnings
 
 from scipy.optimize import fsolve
 
-from src.db import RnaDB
+from .db import RnaDB
 
 def solver(
     x_values : np.array, 
