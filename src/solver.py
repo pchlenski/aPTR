@@ -263,7 +263,7 @@ def solve_genome(
             true_ptr = np.nan
             print(e)
     else:
-        true_ptr = np.nan
+        true_ptr = None
 
     return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "true_ptr" : true_ptr}
 
