@@ -452,7 +452,13 @@ def generate_otu_matrix(
                     out.append({"otu": key, "sample": col_idx, "count": int(counter[key])})
 
     # pivot = pd.DataFrame(out).pivot("otu", "sample", "count")
-    pivot = pd.pivot_table(index="otu", columns="sample", values="count", aggfunc=np.sum)
+    pivot = pd.pivot_table(
+        data=out,
+        index="otu",
+        columns="sample",
+        values="count",
+        aggfunc=np.sum
+    )
     pivot.columns = ptrs.columns
 
     return pivot
