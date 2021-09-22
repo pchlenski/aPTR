@@ -101,7 +101,7 @@ def solver(
             x_values_reflected += [x]
 
     # build up our equation
-    def func(x, history=history): 
+    def func(x, regularization=0, history=history): 
         """
         func(x) represents the system of equations we need to solve to retrieve ptr.
         the input x is array-like with the following structure:
@@ -119,8 +119,6 @@ def solver(
         * bins                inverse of mappings. at each INDEX, gives the coverage bin.
         * history             object for keeping track of training history
         """
-
-        print("Regularization:", regularization)
 
         # unpack variables from x vector
         m        = x[0]
@@ -197,7 +195,7 @@ def solver(
     initial_lambdas = [0] * n
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
     # print("initial values:\t", initial_values)
-    results = fsolve(func, initial_values, history) # initialize to lump all coverage to the leftmost points
+    results = fsolve(func, initial_values, regularization, history) # initialize to lump all coverage to the leftmost points
 
     return results
 
