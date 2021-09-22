@@ -101,7 +101,7 @@ def solver(
             x_values_reflected += [x]
 
     # build up our equation
-    def func(x, regularization=0, history=history): 
+    def func(x, regularization=regularization, history=history): 
         """
         func(x) represents the system of equations we need to solve to retrieve ptr.
         the input x is array-like with the following structure:
@@ -196,7 +196,7 @@ def solver(
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
-    results = fsolve(func, initial_values, regularization=regularization, history=history)
+    results = fsolve(func, initial_values, regularization, history)
 
     return results
 
