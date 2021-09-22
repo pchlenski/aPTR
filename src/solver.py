@@ -194,8 +194,9 @@ def solver(
         initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
     initial_lambdas = [0] * n
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
-    # print("initial values:\t", initial_values)
-    results = fsolve(func, initial_values, regularization, history) # initialize to lump all coverage to the leftmost points
+
+    # initialize to lump all coverage to the leftmost points
+    results = fsolve(func, initial_values, regularization=regularization, history=history) 
 
     return results
 
@@ -256,7 +257,12 @@ def solve_genome(
     coverages = otus[sample_id].reindex(md5s)
 
     # Send to solver
-    results = solver(x_positions, x_mapping, coverages, regularization=regularization)
+    results = solver(
+        x_values=x_positions, 
+        mappings=x_mapping, 
+        coverages=coverages, 
+        regularization=regularization
+    )
 
     # Append output to PTRs dataframe
     m = results[0]
