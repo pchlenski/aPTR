@@ -120,6 +120,8 @@ def solver(
         * history             object for keeping track of training history
         """
 
+        print(Regularization:, regularization)
+
         # unpack variables from x vector
         m        = x[0]
         b        = x[1]
