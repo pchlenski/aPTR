@@ -68,7 +68,7 @@ class RnaDB():
         if isinstance(gid, str):
             gid = [gid]
         elif isinstance(gid, list):
-            for element in list:
+            for element in gid:
                 if not isinstance(element, str):
                     raise TypeError(f"ID list contains non-string element {element}")
         else:
