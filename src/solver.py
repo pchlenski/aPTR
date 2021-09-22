@@ -15,9 +15,10 @@ from scipy.optimize import fsolve
 from .db import RnaDB
 
 def solver(
-    x_values : np.array, 
+    x_values : np.array,
     mappings : np.array,
     coverages : np.array,
+    regularization : float = 0,
     history : bool = False) -> np.array:
     """
     Solve a 16S system of equations.
@@ -40,6 +41,10 @@ def solver(
         of 'coverages'. Tells you which coverage a given element of x_values contributes to.
     coverages:
         Array_like, should be <= x_values size. Observed aggregate coverages from mappings.
+    regularization:
+        Float. Coefficient of L2 regularization applied to line.
+    history:
+        Boolean. If true, saves solver history.
 
     Returns:
     --------
@@ -130,8 +135,10 @@ def solver(
             raise Exception("x and y value arrays are not the same shape")
 
         # compute gradients of m and b
-        dm = np.sum( x_np * (m * x_np + b - y_np) )
-        db = np.sum( m * x_np + b - y_np )
+        dm = np.sum(x_np * (m * x_np + b - y_np))
+        dm += 2 * regularization * m # L2-regularization
+        db = np.sum(m * x_np + b - y_np)
+        dm += 2 * regularization * b # L2-regularization
 
         # compute gradients for each yi
         y_grads = []
@@ -176,7 +183,7 @@ def solver(
         # concatenate all outputs into a single vector
         out      = [dm, db, *y_grads, *constraint_eqs]
         # print(out)
-        if history != False:
+        if history:
             history += [out]
         return out
 
