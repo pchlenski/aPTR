@@ -196,7 +196,7 @@ def solver(
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
-    results = fsolve(func, initial_values, regularization, history)
+    results = fsolve(func, initial_values)
 
     return results
 
