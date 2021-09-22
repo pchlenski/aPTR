@@ -204,7 +204,8 @@ def solve_genome(
     sample_id : str,
     database : pd.DataFrame,
     otus : pd.DataFrame,
-    true_ptrs : pd.DataFrame) -> dict:
+    true_ptrs : pd.DataFrame,
+    regularization : float = 0) -> dict:
     """
     Given a genome ID, a DB, and some coverages, estimate the PTR.
 
@@ -220,6 +221,8 @@ def solve_genome(
         Pandas DataFrame. A matrix of 16S OTU read/abundance counts.
     true_ptrs:
         Pandas DataFrame. A matrix of true PTR values, if known.
+    regularization:
+        Float. L2-regularization penalty applied to m and b.
 
     Returns:
     --------
@@ -253,7 +256,7 @@ def solve_genome(
     coverages = otus[sample_id].reindex(md5s)
 
     # Send to solver
-    results = solver(x_positions, x_mapping, coverages)
+    results = solver(x_positions, x_mapping, coverages, regularization=regularization)
 
     # Append output to PTRs dataframe
     m = results[0]
@@ -278,7 +281,8 @@ def solve_sample(
     sample_id : str,
     database : pd.DataFrame,
     otus : pd.DataFrame,
-    true_ptrs : pd.DataFrame) -> list:
+    true_ptrs : pd.DataFrame,
+    regularization : float = 0) -> list:
     """
     Given a sample name, solve all available 16S systems.
 
@@ -292,6 +296,8 @@ def solve_sample(
         Pandas DataFrame. A matrix of 16S OTU read/abundance counts.
     true_ptrs:
         Pandas DataFrame. A matrix of true PTR values, if known.
+    regularization:
+        Float. L2-regularization penalty applied to m and b.
 
     Returns:
     --------
@@ -315,7 +321,13 @@ def solve_sample(
                 genomes += match
 
     for genome_id in set(genomes):
-        result = solve_genome(genome_id, sample_id, database=database, otus=otus, true_ptrs=true_ptrs)
+        result = solve_genome(
+            genome_id, sample_id, 
+            database=database, 
+            otus=otus, 
+            true_ptrs=true_ptrs, 
+            regularization=regularization
+        )
         out.append(result)
 
     return out
@@ -324,7 +336,8 @@ def solve_matrix(
     database : RnaDB,
     otus : pd.DataFrame,
     true_ptrs : pd.DataFrame = None,
-    max_error : float = np.inf) -> pd.DataFrame:
+    max_error : float = np.inf,
+    regularization : float = 0) -> pd.DataFrame:
     """
     Given a 16S db, OTU read/abundance matrix, and true PTR values (optional), esimate PTRs.
 
@@ -338,6 +351,8 @@ def solve_matrix(
         Pandas DataFrame. A matrix of true PTR values, if known.
     max_error:
         Float. Used to trim extreme error values (experimental).
+    regularization:
+        Float. L2-regularization penalty applied to m and b.
 
     Returns:
     --------
@@ -356,7 +371,13 @@ def solve_matrix(
 
     # For each column, build up x_values, mappings, coverages; send to solver
     for column in otus.columns:
-        results = solve_sample(column, database=database, otus=otus, true_ptrs=true_ptrs)
+        results = solve_sample(
+            column, 
+            database=database, 
+            otus=otus, 
+            true_ptrs=true_ptrs, 
+            regularization=regularization
+        )
         out = out.append(results, ignore_index=True)
 
     out['err'] = np.abs(out['ptr'] - out['true_ptr'])
