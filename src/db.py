@@ -286,6 +286,7 @@ class RnaDB():
         return out
 
     def solve_matrix(
+        self,
         otus : pd.DataFrame,
         true_ptrs : pd.DataFrame = None,
         max_error : float = np.inf,
