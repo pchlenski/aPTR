@@ -2,6 +2,7 @@
 Implements the 16S database class
 """
 
+import numpy as np
 import pandas as pd
 from .solver import solver
 
