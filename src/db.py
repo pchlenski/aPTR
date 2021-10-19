@@ -215,12 +215,7 @@ class RnaDB():
         )
 
         # Append output to PTRs dataframe
-        m = results[0]
-        b = results[1]
-        peak = np.exp2(b)
-        trough = np.exp2(m * 0.5 + b)
-        ptr = peak / trough
-        ptr2 = np.exp2(-m / 2)
+        ptr = np.exp2(-results[0] / 2)
 
         # Get true PTR
         if true_ptrs is not None:
@@ -232,7 +227,7 @@ class RnaDB():
         else:
             true_ptr = None
 
-        return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "ptr2" : ptr2, "true_ptr" : true_ptr}
+        return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "true_ptr" : true_ptr}
 
     def solve_sample(
         self,
@@ -319,7 +314,7 @@ class RnaDB():
         -------
         TODO
         """
-        out = pd.DataFrame(columns=["genome", "sample", "ptr", "ptr2", "true_ptr"])
+        out = pd.DataFrame(columns=["genome", "sample", "ptr", "true_ptr"])
 
         # For each column, build up x_values, mappings, coverages; send to solver
         for column in otus.columns:
