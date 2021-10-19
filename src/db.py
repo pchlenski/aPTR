@@ -216,10 +216,17 @@ class RnaDB():
 
         # Append output to PTRs dataframe
         m = results[0]
-        b = results[1]
+        # b = results[1]
         peak = np.exp2(b)
         trough = np.exp2(m * 0.5 + b)
         ptr = peak / trough
+        ptr2 = np.exp2(-m / 2)
+
+        # Sanity check
+        if ptr == ptr2:
+            print("PTR = PTR2")
+        else:
+            print("PTR MISMATCH")
 
         # Get true PTR
         if true_ptrs is not None:

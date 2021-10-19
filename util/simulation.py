@@ -66,6 +66,7 @@ def ptr_curve(
     x_original = x_array.copy()
 
     # Reflect about trough for values not in the first half
+    # TODO: this trough is wrong!!!!!!!
     x_array[np.where(x_array > 0.5)] = 1 - x_array[np.where(x_array > 0.5)]
 
     # Return the normalized probability. Here the coverage at the peak is the PTR, and the coverage at the trough is 1.
