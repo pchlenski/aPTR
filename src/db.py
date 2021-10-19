@@ -216,7 +216,7 @@ class RnaDB():
 
         # Append output to PTRs dataframe
         m = results[0]
-        # b = results[1]
+        b = results[1]
         peak = np.exp2(b)
         trough = np.exp2(m * 0.5 + b)
         ptr = peak / trough
