@@ -6,4 +6,6 @@ out/
 tmp/
 data/seqs/
 data/seqs_complete/
-
+data/hmp2/
+data/infant/
+data/full_length_seqs.fa
