@@ -222,12 +222,6 @@ class RnaDB():
         ptr = peak / trough
         ptr2 = np.exp2(-m / 2)
 
-        # Sanity check
-        if ptr == ptr2:
-            print("PTR = PTR2")
-        else:
-            print("PTR MISMATCH")
-
         # Get true PTR
         if true_ptrs is not None:
             try:
@@ -238,7 +232,7 @@ class RnaDB():
         else:
             true_ptr = None
 
-        return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "true_ptr" : true_ptr}
+        return {"genome" : genome_id, "sample" : sample_id, "ptr" : ptr, "ptr2" : ptr2, "true_ptr" : true_ptr}
 
     def solve_sample(
         self,
@@ -325,7 +319,7 @@ class RnaDB():
         -------
         TODO
         """
-        out = pd.DataFrame(columns=["genome", "sample", "ptr", "true_ptr"])
+        out = pd.DataFrame(columns=["genome", "sample", "ptr", "ptr2", "true_ptr"])
 
         # For each column, build up x_values, mappings, coverages; send to solver
         for column in otus.columns:
