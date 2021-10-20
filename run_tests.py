@@ -1,4 +1,6 @@
-from test.tests import *
+from src.test.tests import *
+import sys
+sys.path.append(".")
 
 # test_1()
 # test_2()

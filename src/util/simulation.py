@@ -10,7 +10,7 @@ import pandas as pd
 
 from Bio import SeqIO
 
-from aPTR.src.db import RnaDB
+from ..db import RnaDB
 
 def ptr_curve(
     size : int,
