@@ -11,9 +11,10 @@ from scipy.optimize import fsolve
 # from .db import RnaDB
 
 def solver(
-    x_values : np.array,
-    mappings : np.array,
-    coverages : np.array,
+    x_values : list,
+    mappings : list,
+    coverages : list,
+    shared_seqs: list,
     regularization : float = 0,
     history : bool = False) -> np.array:
     """
@@ -23,20 +24,22 @@ def solver(
     1.  Run a number of checks on the inputs
     2.  Build up an inverse (aggregate coverage bin --> [16S indices]) dictionary
     3.  Reflect any x-values past the terminus onto the downward phase of the PTR curve
-    4.  Loop over number of 16S RNA locations (x/y values) and aggregate coverage bins to build up a system of equations
-        representing the appropriate behavior of the Lagrange multipliers
+    4.  Loop over number of 16S RNA locations (x/y values) and aggregate coverage bins to build up a system of
+        equations representing the appropriate behavior of the Lagrange multipliers
     5.  Use scipy fsolve method to find the roots of this system of equations
 
     Args:
     -----
     x_values:
-        Array-like. Start positions in the interval [0, 1) for 16S operons. If not constrained, we will constrain 
-        ourselves.
+        List of array-like objects. Each has start positions in the interval [0, 1) for 16S operons. If not
+        constrained, we will constrain ourselves.
     mappings:
-        Array-like, should be same size as x_values. Each entry should be an integer from 0 to n, where n is the size
-        of 'coverages'. Tells you which coverage a given element of x_values contributes to.
+        List of array-like objects, should be same size as x_values. Each should consist of integer from 0 to n, where
+        n is the size of 'coverages'. Tells you which coverage a given element of x_values contributes to.
     coverages:
-        Array_like, should be <= x_values size. Observed aggregate coverages from mappings.
+        List of array_like objects, each should be <= x_values size. Observed aggregate coverages from mappings.
+    shared_seqs:
+        TODO: figure out how to define this properly.
     regularization:
         Float. Coefficient of L2 regularization applied to line.
     history:
