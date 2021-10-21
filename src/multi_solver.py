@@ -5,16 +5,30 @@ The solver for the 16S system. This solver is adapted to solve multiply mapped s
 import numpy as np
 import pandas as pd
 import warnings
+from collections import defaultdict
 
 from scipy.optimize import fsolve
 
 # from .db import RnaDB
 
-def solver(
-    x_values : list,
-    mappings : list,
+def reflect(x: list, oor: float) -> np.array:
+    """
+    Given a list/array of x-values, reflect them about the origin of replication
+    """
+    if np.max(x) > 0:
+        raise Exception("Normalize x-values first")
+    if oor > 1:
+        raise Exception("OOR should be between 0 and 1")
+
+    x = x - oor
+    x = x % 1
+    return x[x>.5] = 1 - x[x>.5]
+
+def multi_solver(
+    x_values_list : list,
+    mappings_list : list,
     coverages : list,
-    shared_seqs: list,
+    oors: list = False,
     regularization : float = 0,
     history : bool = False) -> np.array:
     """
@@ -30,16 +44,17 @@ def solver(
 
     Args:
     -----
-    x_values:
+    x_values_list:
         List of array-like objects. Each has start positions in the interval [0, 1) for 16S operons. If not
         constrained, we will constrain ourselves.
-    mappings:
+    mappings_list:
         List of array-like objects, should be same size as x_values. Each should consist of integer from 0 to n, where
-        n is the size of 'coverages'. Tells you which coverage a given element of x_values contributes to.
+        n is the sum of sizes over all elements of 'coverages'. Tells you which coverage a given element of x_values
+        contributes to. Note that an index can occur in multiple list elements.
     coverages:
-        List of array_like objects, each should be <= x_values size. Observed aggregate coverages from mappings.
-    shared_seqs:
-        TODO: figure out how to define this properly.
+        Array_like, each should be <= x_values size. Observed aggregate coverages from mappings.
+    oors:
+        List of floats corresponding to the [0,1]-normalized origins of replication. 
     regularization:
         Float. Coefficient of L2 regularization applied to line.
     history:
@@ -54,50 +69,75 @@ def solver(
     TODO
     """
 
-    l = len(x_values)  # number of inputs
-    m = len(mappings)
-    n = len(coverages) # number of constraints
+    # Check that we have the same number of systems overlapping
+    l1 = len(x_values_list)
+    l2 = len(mappings_list)
+    n = len(coverages)
+    if l1 != l2:
+        raise Exception("'x_values' and 'mappings' lists are not same size")
+    total_x = np.sum(len(x) for x in x_values)
 
-    # check some of the length issues we may face
-    if l != m:
-        raise Exception("'x_values' and 'mappings' arrays are not the same size")
-    elif n > l:
-        raise Exception("'coverages' is larger than 'x_values'")
-    elif l == n:
-        warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
-    # simply proceed with the rest
-    elif n == 1:
-        raise Exception("Cannot compute PTR from a single coverage bin")
-
-    # check x_values is within [0,1):
-    if np.max(x_values) > 1:
-        raise Exception("Maximum element of x_values is greater than 1. Please normalize x values by genome length before calling solve_general()")
-
-    # check that our coverages are well-behaved
+    # Check that coverages are well-behaved
     if set(mappings) != set(range(n)):
         raise Exception("entries of 'mapping' are not 0-indexed integers")
-    elif len(set(mappings)) > len(coverages):
-        raise Exception("'coverages' does not have enough entries for the mapping provided.")
-    elif len(set(mappings)) < len(coverages):
-        raise Exception("'coverages' has too many entries for the mapping provided.")
 
-    # if good, build up an inverse mapping of our constraints
-    bins = { x : [] for x in set(mappings) } # explicitly initialize to none
-    for idx in range(m):
-        bin = mappings[idx]
-        bins[bin] += [idx]
-        # print("mapping:\t", bins)
+    # Reflect x-inputs around origin of replication
+    # TODO: refactor OOR code into RnaDB.solve_genome()
+    if oors:
+        x_values = [reflect(x,y) for x,y in zip(x_values, oors)]
+    else:
+        x_values = [reflect(x, 0) for x in x_values]
 
-    # TODO: check that coverages make sense in the context of the mappings
-    # i.e. no [coverage / number of operons in bin] should be more than 2x any other
+    # Elementwise checks on input dimensions
+    # Then, build up inputs
+    bins = defaultdict([])
+    # Build up function inputs
+    for i, x_values, mappings, coverages in enumerate(zip(x_values_list, mappings_list, coverages_list)):
+        l = len(x_values[i])
+        m = len(mappings[i])
+        n = len(coverages[i])
 
-    # if good, preprocess x-values to all be on downward phase of PTR:
-    x_values_reflected = []
-    for x in x_values:
-        if x > 0.5:
-            x_values_reflected += [1 - x]
-        else:
-            x_values_reflected += [x]
+        # Check some of the length issues we may face
+        if l != m:
+            raise Exception("'x_values' and 'mappings' arrays are not the same size")
+        elif n > l:
+            raise Exception("'coverages' is larger than 'x_values'")
+        elif l == n:
+            # warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
+            pass
+        # Simply proceed with the rest
+        elif n == 1:
+            raise Exception("Cannot compute PTR from a single coverage bin")
+
+        # Check x_values is within [0,1):
+        if np.max(x_values) > 1:
+            raise Exception("Maximum element of x_values is greater than 1. Please normalize x values by genome length before calling solve_general()")
+
+        # Check that our coverages are well-behaved
+        elif len(set(mappings)) > len(coverages):
+            raise Exception("'coverages' does not have enough entries for the mapping provided.")
+        elif len(set(mappings)) < len(coverages):
+            raise Exception("'coverages' has too many entries for the mapping provided.")
+
+        # if good, build up an inverse mapping of our constraints
+        # Mappings: implicitly maps [x_position => sequence]
+        # Inverse mappings: maps [sequence => (list_index, x_position)]
+        for mapping in mappings:
+            bins[mapping].append((i, idx))
+
+        # TODO: check that coverages make sense in the context of the mappings
+        # i.e. no [coverage / number of operons in bin] should be more than 2x any other
+
+    """
+    Old function (single case):
+    X = < m, b, y_1, ..., y_n, lambda_1, ..., lambda_m >
+
+    New function (multimap case):
+    X = < m_1, ..., m_l, b_1, ... b_l, y_11, ... y_1n_1, ... y_l1, ... y_ln_l, lambda_1, ..., lambda_m >
+    Main differences:
+      * Fit l different lines simultaneously
+      * Coverage constraints go from 2^(y_i) + 2^(y_j) = c_{ij} to 2^{y_ij} + 2^{y_kl} = c_{ijkl}
+    """
 
     # build up our equation
     def func(x, regularization=regularization, history=history): 
@@ -105,25 +145,34 @@ def solver(
         func(x) represents the system of equations we need to solve to retrieve ptr.
         the input x is array-like with the following structure:
 
-          x = < m, b, y1, ..., y_n, lambda_1, ..., lambda_m >
+            X = < m_1, ..., m_l, b_1, ... b_l, y_11, ... y_1n_1, ... y_l1, ... y_ln_l, lambda_1, ..., lambda_m >
 
-        where m and b are slope and intercept of a line of best fit for (x_1:n, y_1:n),
-        y_1:n are log-coverage values estimated within the given constraints, and
-        lambda_1:m are lagrange multipliers for our constraints
+        where:
+        * m_i and b_i are slope and intercept of a line of best fit for (x_i:n_i, y_i:n_i)
+        * y_i1:n are log-coverage values estimated within the given constraints, and
+        * lambda_1:m are lagrange multipliers for our constraints
 
         func(x) inherits the following variables from solve_general:
-        * x_values_reflected  x-coordinates in [0,1) reflected about terminus where x > 0.5
-        * coverages           bin coverages
-        * mappings            for each coverage bin, lists the constituent 16S copy INDICES
-        * bins                inverse of mappings. at each INDEX, gives the coverage bin.
-        * history             object for keeping track of training history
+        * l1                Length of x_values_list, coverages_list, mappings_list
+        * total_size        Sum of coverage bin sizes
+        * x_values_list     List of x-coordinates in [0,1) reflected about terminus where x > 0.5
+        * coverages_list    List of bin coverages
+        * mappings_list     List of mappings. For each coverage bin, lists the constituent 16S copy INDICES
+        * bins              Inverse of mappings. at each INDEX, gives a list of (genome index, coverage bin) tuples.
+        * history           Object for keeping track of training history
         """
 
-        # unpack variables from x vector
-        m        = x[0]
-        b        = x[1]
-        y_values = x[2:-n] # everything between m, b, and lagrange is y-values
-        lambdas  = x[-n:]  # last n elements of x are lagrange multipliers
+        # Unpack variables from vector
+        m = x[0 : l]
+        b = x[l : 2*l]
+        y_values = [2*l+1 : -n] # Everything between m, b, and lagrange is y-values
+        lambdas = x[-n] # Last n elements are lagrange multipliers
+
+        # More sanity checks: Y inputs
+        if len(y_values) != total_x:
+            raise Exception("Numerical error: y_values do not match number of x-values")
+
+        # TODO: THIS IS WHERE I LEFT OFF IN MY REFACTOR
 
         # preprocess for numpy
         x_np = np.array(x_values_reflected)
