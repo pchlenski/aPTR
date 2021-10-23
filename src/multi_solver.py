@@ -30,6 +30,7 @@ def multi_solver(
     coverages : list,
     oors: list = False,
     regularization : float = 0,
+    initialization : str = 'zero',
     history : bool = False) -> np.array:
     """
     Solve a 16S system of equations.
@@ -57,6 +58,8 @@ def multi_solver(
         List of floats corresponding to the [0,1]-normalized origins of replication. 
     regularization:
         Float. Coefficient of L2 regularization applied to line.
+    iniziatialization:
+        String. Should be one of ['zero', 'random', 'one-zero']. Sets the initial y-value guess.
     history:
         Boolean. If true, saves solver history.
 
@@ -163,53 +166,64 @@ def multi_solver(
         """
 
         # Unpack variables from vector
-        m = x[0 : l]
-        b = x[l : 2*l]
-        y_values = [2*l+1 : -n] # Everything between m, b, and lagrange is y-values
+        m_vals = x[0 : l]
+        b_vals = x[l : 2*l]
+        y_vals = [2*l+1 : -n] # Everything between m, b, and lagrange is y-values
         lambdas = x[-n] # Last n elements are lagrange multipliers
 
         # More sanity checks: Y inputs
-        if len(y_values) != total_x:
+        if len(y_vals) != total_x:
             raise Exception("Numerical error: y_values do not match number of x-values")
 
-        # TODO: THIS IS WHERE I LEFT OFF IN MY REFACTOR
+        # Preprocess for numpy
+        # Reshape y to match v-values
+        x_np = [np.array(x) for x in x_values_reflected]
+        y_np = []
+        y_index = 0
+        for x in x_values_reflected:
+            y_vals_matched = y_vals[y_index : y_index + len(x)]
+            y_vals_match = np.array(y_vals_matched)
+            y_np.append(y_vals_matched)
+            y_index += len(x)
 
-        # preprocess for numpy
-        x_np = np.array(x_values_reflected)
-        y_np = np.array(y_values)
+        # Sanity check: all lengths are l
+        if len(m_vals) != len(b_vals) != len(y_vals) != len(x_np) != len(y_np) != l:
+            raise Exception("Length mismatch somewhere in X_vector unpacking phase")
 
-        # check that our inputs make sense
-        if len(x_np) != len(y_np):
-            raise Exception("x and y value arrays are not the same shape")
-
-        # compute gradients of m and b
-        dm = np.sum(x_np * (m * x_np + b - y_np))
-        dm += 2 * regularization * m # L2-regularization
-        db = np.sum(m * x_np + b - y_np)
-        dm += 2 * regularization * b # L2-regularization
+        # Compute gradients of m and b
+        # OLD FORMULA, 1_D case: dm = np.sum(x_np * (m * x_np + b - y_np))
+        dm_vals = [np.sum(x*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
+        dm_vals = [dm + 2 * regularization * m for dm,m in zip(dm_vals,m_vals)]  # L2-regularization
+        # OLD FORMULA, 1-D case: db = np.sum(m * x_np + b - y_np)
+        db_vals = [np.sum(m*x+b-y) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
+        db_vals = [db + 2 * regularization * b for db,b in zip(db_vals,b_vals)] # L2-regularization
 
         # compute gradients for each yi
         y_grads = []
-        for (xi, yi, mi) in zip(x_values_reflected, y_values, mappings):
-            """
-            Loop over our (x, y) pairs, using the 'mappings' input to work it all out.
-            The equation for each y_i is as follows:
 
-             df                                                y_i
-            ---- = -2( mx_i + b - y_i ) = lambda_j * log(2) * 2
-            dy_i
+        for x, y, m, b, mapping in zip(x_values_refleceted, y_values, m_vals, b_vals, mappings):
+            y_grads_local = []
+            for xi, yi, mi in zip(x, y, mapping):
+                """
+                Loop over our (x, y) pairs, using the 'mappings' input to work it all out.
+                The equation for each y_i is as follows:
 
-            If we let c_j be constraint j, i.e. the aggregate coverage that y_i goes
-            into, then the index of c_j is stored in mappings[x_i], hence we can use
-            lambdas[m_i] to get the corresponding Lagrange multiplier for it
-            """
-            dy       = -2 * (m * xi + b - yi)
-            dlambda  = lambdas[mi] * np.log(2) * (2 ** yi)
-            y_grads += [dy - dlambda] 
+                 df                                                y_i
+                ---- = -2( mx_i + b - y_i ) = lambda_j * log(2) * 2
+                dy_i
+
+                If we let c_j be constraint j, i.e. the aggregate coverage that y_i goes
+                into, then the index of c_j is stored in mappings[x_i], hence we can use
+                lambdas[m_i] to get the corresponding Lagrange multiplier for it
+                """
+                dy = -2 * (m * xi + b - yi)
+                dlambda = lambdas[mi] * np.log(2) * (2 ** yi)
+                y_grads_local.append(dy - dlambda)
+            y_grads.append(y_grads_local)
 
         # compute constraints
         constraint_eqs = []
-        for bin in bins.keys():
+        for coverage_bin in bins:
             """
             Loop over our discrete coverage bins, retrieve our best guesses for their
             constituent y-values, and get the gradient of the constraint with respect 
@@ -222,24 +236,29 @@ def multi_solver(
             Handle cases where the constraint is simply of the form 2^{y_i} = c_j,
             no summation required
             """
-            coverage_val    = coverages[bin]                          # get actual bin coverage
-            bin_x_vals      = bins[bin]                               # get indices
-            bin_y_vals      = [ y_values[idx] for idx in bin_x_vals ] # then retrieve their values
-            coverage_sum    = np.sum( np.exp2(bin_y_vals) )           # sum exponentiation to get coverage
-            constraint_eqs += [coverage_sum - coverage_val]
+            coverage_val = coverages[coverage_bin] # get actual bin coverage
+            bin_x_vals = bins[coverage_bin] # get indices
+            bin_y_vals = [y_values[i][j] for i,j in bin_x_vals] # then retrieve their values
+            coverage_sum = np.sum(np.exp2(bin_y_vals)) # sum exponentiation to get coverage
+            constraint_eqs.append(coverage_sum - coverage_val)
 
         # concatenate all outputs into a single vector
-        out      = [dm, db, *y_grads, *constraint_eqs]
+        out = [*dm_vals, *db_vals, *y_grads, *constraint_eqs]
         # print(out)
         if history:
             history += [out]
         return out
 
     # set params and solve
-    initial_ys = [0] * l
-    for bin in bins.keys():
-        first_idx             = bins[bin][0]            # get leftmost element of bin
-        initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
+    if initialization == 'zero':
+        initial_ys = [0] * total_x
+    elif initialization == 'random':
+        initial_ys = np.random.rand(total_x)
+    elif initialization == 'one_zero':
+        raise NotImplementedError()
+        # TODO: Implement one-zero initialization
+    else:
+        raise Exception(f"initialization method '{initialization}' does not exist!")
     initial_lambdas = [0] * n
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
 
