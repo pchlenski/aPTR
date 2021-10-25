@@ -104,14 +104,11 @@ def multi_solver(
         l_i = len(x_values)
         m_i = len(mappings)
 
-        print("X VALUES", x_values)
-        print("MAPPINGS", mappings)
-
         # Check some of the length issues we may face
         if l_i != m_i:
             raise Exception("'x_values' and 'mappings' arrays are not the same size")
-        elif n > l_i:
-            raise Exception("'coverages' is larger than 'x_values'")
+        # elif n > l_i:
+            # raise Exception("'coverages' is larger than 'x_values'")
         elif l_i == n:
             # warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
             pass
@@ -177,9 +174,6 @@ def multi_solver(
         y_vals = x[2*l : -n] # Everything between m, b, and lagrange is y-values
         lambdas = x[-n:] # Last n elements are lagrange multipliers
 
-        print("X DUMP:")
-        print(x, m_vals, b_vals, y_vals, lambdas, sep="\n")
-
         # More sanity checks: Y inputs
         if len(y_vals) != total_x:
             print(f"{len(y_vals)} != {total_x}")
@@ -213,7 +207,8 @@ def multi_solver(
         # compute gradients for each yi
         y_grads = []
 
-        for x, y, m, b, mapping in zip(x_values_refleceted, y_values, m_vals, b_vals, mappings):
+        # Iterate over db entries first first
+        for x, y, m, b, mapping in zip(x_np, y_np, m_vals, b_vals, mappings_list):
             y_grads_local = []
             for xi, yi, mi in zip(x, y, mapping):
                 """
@@ -230,8 +225,9 @@ def multi_solver(
                 """
                 dy = -2 * (m * xi + b - yi)
                 dlambda = lambdas[mi] * np.log(2) * (2 ** yi)
-                y_grads_local.append(dy - dlambda)
-            y_grads.append(y_grads_local)
+                y_grads.append(dy - dlambda)
+                # y_grads_local.append(dy - dlambda)
+            # y_grads.append(y_grads_local)
 
         # compute constraints
         constraint_eqs = []
@@ -250,13 +246,12 @@ def multi_solver(
             """
             coverage_val = coverages[coverage_bin] # get actual bin coverage
             bin_x_vals = bins[coverage_bin] # get indices
-            bin_y_vals = [y_values[i][j] for i,j in bin_x_vals] # then retrieve their values
+            bin_y_vals = [y_np[i][j] for i,j in bin_x_vals] # then retrieve their values
             coverage_sum = np.sum(np.exp2(bin_y_vals)) # sum exponentiation to get coverage
             constraint_eqs.append(coverage_sum - coverage_val)
 
         # concatenate all outputs into a single vector
         out = [*dm_vals, *db_vals, *y_grads, *constraint_eqs]
-        # print(out)
         if history:
             history += [out]
         return out
@@ -264,16 +259,15 @@ def multi_solver(
     # set params and solve
     if initialization == 'zero':
         initial_ys = [0] * total_x
-        print(f"Making {len(initial_ys)} total Y values")
     elif initialization == 'random':
-        initial_ys = np.random.rand(total_x)
+        initial_ys = .1 * np.random.rand(total_x)
     elif initialization == 'one_zero':
         raise NotImplementedError()
         # TODO: Implement one-zero initialization
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
-    initial_m = [1] * l
-    initial_b = [-1] * l
+    initial_m = [0] * l
+    initial_b = [0] * l
     initial_lambdas = [0] * n
     initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]
 

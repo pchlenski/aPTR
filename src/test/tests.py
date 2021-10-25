@@ -129,7 +129,7 @@ def test_6(dd="./data/", ex_dir="./out/complete/", scale=1):
     matrix = generate_otu_matrix(db, ptrs, covs, scale=scale)
     print(matrix)
 
-def test_7(database, genome='325240.15'):
+def test_7(database, genome='325240.15', ptr=False):
     """
     Generate and test coverage from a genome
     """
@@ -138,7 +138,8 @@ def test_7(database, genome='325240.15'):
     x_vals = genome_rows['16s_position'] / genome_rows['size']
     size = genome_rows['size'].iloc[0]
 
-    ptr = 1 + np.random.rand()
+    if not ptr:
+        ptr = 1 + np.random.rand()
     ptrs = pd.DataFrame(columns=["sample1"])
     ptrs.loc[genome,"sample1"] = ptr
 
@@ -154,6 +155,8 @@ def test_7(database, genome='325240.15'):
 
     print(f"True PTR: {ptr}, Estimated PTR: {ptr_est}")
 
+    return ptr_est
+
 def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6']):
     """
     Generate and test coverage from two entangled genomes, individually then together
@@ -161,11 +164,19 @@ def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6
     Good set to use: ['325240.15', '407976.7', '407976.7', '693973.6']
     """
 
+    n = len(genomes)
+
     ptrs = pd.DataFrame(columns=["sample1"])
     coverages = pd.DataFrame(columns=["sample1"])
 
+    estimates = []
+    ptrs_list = []
     for genome in genomes:
-        ptrs.loc[genome,"sample1"] = np.random.rand()
+        ptr = 1 + np.random.rand()
+        ptrs.loc[genome,"sample1"] = ptr
+        ptrs_list.append(ptr)
+        solution_single = test_7(database, genome, ptr)
+        estimates.append(solution_single)
         coverages.loc[genome,"sample1"] = 100000
 
     otus = generate_otu_matrix(database, ptrs, coverages)
@@ -198,10 +209,25 @@ def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6
     # get coverages
     coverages = list(otus['sample1'])
 
-    print("X VALUES", x_values_list)
 
-    solution = multi_solver(x_values_list, mappings_list, coverages)
-    print(solution)
+    solution = multi_solver(x_values_list, mappings_list, coverages, initialization='random')
+    ms = solution[:n]
+    print("True Single  Multiple")
+    for ptr, ptr_estimate_single, m in zip(ptrs_list, estimates, ms):
+        print(f"{ptr:.3f}   {ptr_estimate_single:.3f}   {np.exp(-m/2):.3f}")
+
+def test_9(database, n=10):
+    """
+    Run test_8 on random safe genomes
+    """
+
+    safe_genomes = set(database.db[database.db['status'] == 'safe']['genome'])
+    choice = np.random.choice(list(safe_genomes), n, replace=False)
+    print(choice)
+    test_8(database, list(choice))
+
+
+
 
 
 
