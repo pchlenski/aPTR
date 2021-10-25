@@ -20,8 +20,8 @@ class RnaDB():
 
     def __init__(
         self,
-        db_path : str,
-        collisions_path : str) -> None:
+        db_path : str = False,
+        collisions_path : str = False) -> None:
         """
         Initialize DB: load databases
 
@@ -40,8 +40,16 @@ class RnaDB():
         -------
         None.
         """
-        self.db = pd.read_pickle(db_path)
-        self.collisions = pd.read_pickle(collisions_path)
+
+        if not db_path and not collisions_path:
+            try:
+                self.db = pd.read_pickle("./data/db.pkl")
+                self.collisions = pd.read_pickle("./data/collisions.pkl")
+            except Exception as e:
+                raise e
+        else:
+            self.db = pd.read_pickle(db_path)
+            self.collisions = pd.read_pickle(collisions_path)
 
         self.genomes = list(self.db["genome"].unique())
         self.md5s = list(self.db["16s_md5"].unique())

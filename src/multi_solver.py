@@ -11,18 +11,20 @@ from scipy.optimize import fsolve
 
 # from .db import RnaDB
 
-def reflect(x: list, oor: float) -> np.array:
+def reflect(x: list, oor: float = 0) -> np.array:
     """
     Given a list/array of x-values, reflect them about the origin of replication
     """
-    if np.max(x) > 0:
+    if np.max(x) > 1:
         raise Exception("Normalize x-values first")
     if oor > 1:
         raise Exception("OOR should be between 0 and 1")
 
+    x = np.array(x)
     x = x - oor
     x = x % 1
-    return x[x>.5] = 1 - x[x>.5]
+    x[x>.5] = 1 - x[x>.5]
+    return x
 
 def multi_solver(
     x_values_list : list,
@@ -73,44 +75,46 @@ def multi_solver(
     """
 
     # Check that we have the same number of systems overlapping
-    l1 = len(x_values_list)
+    l = len(x_values_list)
     l2 = len(mappings_list)
     n = len(coverages)
-    if l1 != l2:
+    if l != l2:
         raise Exception("'x_values' and 'mappings' lists are not same size")
-    total_x = np.sum(len(x) for x in x_values)
+    elif n == 1:
+        raise Exception("Cannot compute PTR from a single coverage bin")
+    total_x = np.sum(len(x) for x in x_values_list)
 
     # Check that coverages are well-behaved
-    if set(mappings) != set(range(n)):
-        raise Exception("entries of 'mapping' are not 0-indexed integers")
+    # TODO: fix this; commented out for now
+    # if set(mappings) != set(range(n)):
+    #     raise Exception("entries of 'mapping' are not 0-indexed integers")
 
     # Reflect x-inputs around origin of replication
     # TODO: refactor OOR code into RnaDB.solve_genome()
     if oors:
-        x_values = [reflect(x,y) for x,y in zip(x_values, oors)]
+        x_values_list = [reflect(x,y) for x,y in zip(x_values_list, oors)]
     else:
-        x_values = [reflect(x, 0) for x in x_values]
+        x_values_list = [reflect(x, 0) for x in x_values_list]
 
     # Elementwise checks on input dimensions
     # Then, build up inputs
-    bins = defaultdict([])
+    bins = defaultdict(list)
     # Build up function inputs
-    for i, x_values, mappings, coverages in enumerate(zip(x_values_list, mappings_list, coverages_list)):
-        l = len(x_values[i])
-        m = len(mappings[i])
-        n = len(coverages[i])
+    for i, (x_values, mappings) in enumerate(zip(x_values_list, mappings_list)):
+        l_i = len(x_values)
+        m_i = len(mappings)
+
+        print("X VALUES", x_values)
+        print("MAPPINGS", mappings)
 
         # Check some of the length issues we may face
-        if l != m:
+        if l_i != m_i:
             raise Exception("'x_values' and 'mappings' arrays are not the same size")
-        elif n > l:
+        elif n > l_i:
             raise Exception("'coverages' is larger than 'x_values'")
-        elif l == n:
+        elif l_i == n:
             # warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
             pass
-        # Simply proceed with the rest
-        elif n == 1:
-            raise Exception("Cannot compute PTR from a single coverage bin")
 
         # Check x_values is within [0,1):
         if np.max(x_values) > 1:
@@ -120,12 +124,14 @@ def multi_solver(
         elif len(set(mappings)) > len(coverages):
             raise Exception("'coverages' does not have enough entries for the mapping provided.")
         elif len(set(mappings)) < len(coverages):
-            raise Exception("'coverages' has too many entries for the mapping provided.")
+            pass
+            # TODO: Check if this needs to be fixed/re-raised
+            # raise Exception("'coverages' has too many entries for the mapping provided.")
 
         # if good, build up an inverse mapping of our constraints
         # Mappings: implicitly maps [x_position => sequence]
         # Inverse mappings: maps [sequence => (list_index, x_position)]
-        for mapping in mappings:
+        for idx, mapping in enumerate(mappings):
             bins[mapping].append((i, idx))
 
         # TODO: check that coverages make sense in the context of the mappings
@@ -166,21 +172,27 @@ def multi_solver(
         """
 
         # Unpack variables from vector
-        m_vals = x[0 : l]
+        m_vals = x[:l]
         b_vals = x[l : 2*l]
-        y_vals = [2*l+1 : -n] # Everything between m, b, and lagrange is y-values
-        lambdas = x[-n] # Last n elements are lagrange multipliers
+        y_vals = x[2*l : -n] # Everything between m, b, and lagrange is y-values
+        lambdas = x[-n:] # Last n elements are lagrange multipliers
+
+        print("X DUMP:")
+        print(x, m_vals, b_vals, y_vals, lambdas, sep="\n")
 
         # More sanity checks: Y inputs
         if len(y_vals) != total_x:
+            print(f"{len(y_vals)} != {total_x}")
+            print(f"Y vals: {y_vals}")
+            print(f"X vals: {[len(_x) for _x in x_values_list]}")
             raise Exception("Numerical error: y_values do not match number of x-values")
 
         # Preprocess for numpy
         # Reshape y to match v-values
-        x_np = [np.array(x) for x in x_values_reflected]
+        x_np = [np.array(x) for x in x_values_list]
         y_np = []
         y_index = 0
-        for x in x_values_reflected:
+        for x in x_values_list:
             y_vals_matched = y_vals[y_index : y_index + len(x)]
             y_vals_match = np.array(y_vals_matched)
             y_np.append(y_vals_matched)
@@ -252,6 +264,7 @@ def multi_solver(
     # set params and solve
     if initialization == 'zero':
         initial_ys = [0] * total_x
+        print(f"Making {len(initial_ys)} total Y values")
     elif initialization == 'random':
         initial_ys = np.random.rand(total_x)
     elif initialization == 'one_zero':
@@ -259,8 +272,10 @@ def multi_solver(
         # TODO: Implement one-zero initialization
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
+    initial_m = [1] * l
+    initial_b = [-1] * l
     initial_lambdas = [0] * n
-    initial_values = [0, 0, *initial_ys, *initial_lambdas]
+    initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
     results = fsolve(func, initial_values)

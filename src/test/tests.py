@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from ..util.simulation import *
 from ..db import *
 import timeit
+from src.multi_solver import multi_solver
 
 def test_1():
     """
@@ -127,3 +128,81 @@ def test_6(dd="./data/", ex_dir="./out/complete/", scale=1):
 
     matrix = generate_otu_matrix(db, ptrs, covs, scale=scale)
     print(matrix)
+
+def test_7(database, genome='325240.15'):
+    """
+    Generate and test coverage from a genome
+    """
+
+    genome_rows = database[genome]
+    x_vals = genome_rows['16s_position'] / genome_rows['size']
+    size = genome_rows['size'].iloc[0]
+
+    ptr = 1 + np.random.rand()
+    ptrs = pd.DataFrame(columns=["sample1"])
+    ptrs.loc[genome,"sample1"] = ptr
+
+    coverage = 1000000
+    coverages = pd.DataFrame(columns=["sample1"])
+    coverages.loc[genome,"sample1"] = coverage
+    otus = generate_otu_matrix(database, ptrs, coverages)
+
+    # normalize
+    otus["sample1"] = otus["sample1"] / np.sum(otus["sample1"])
+
+    ptr_est = database.solve_matrix(otus)["ptr"].iloc[0]
+
+    print(f"True PTR: {ptr}, Estimated PTR: {ptr_est}")
+
+def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6']):
+    """
+    Generate and test coverage from two entangled genomes, individually then together
+
+    Good set to use: ['325240.15', '407976.7', '407976.7', '693973.6']
+    """
+
+    ptrs = pd.DataFrame(columns=["sample1"])
+    coverages = pd.DataFrame(columns=["sample1"])
+
+    for genome in genomes:
+        ptrs.loc[genome,"sample1"] = np.random.rand()
+        coverages.loc[genome,"sample1"] = 100000
+
+    otus = generate_otu_matrix(database, ptrs, coverages)
+
+    # build up x_values_list, mappings_list
+    dbg2 = database[genomes]
+    # md5s = dbg['16s_md5']
+    md5s = list(otus.index)
+    mapping = {}
+    idx = 0
+    for md5 in md5s:
+        if md5 not in mapping:
+            mapping[md5] = idx
+            idx += 1
+            # TODO: VECTORIZE
+
+    mappings_list = [] 
+    x_values_list = []
+    for genome in genomes:
+        # get x values
+        dbg = database[genome]
+        x_values = dbg['16s_position'] / dbg['size']
+        x_values = list(x_values)
+        x_values_list.append(x_values)
+
+        # get md5
+        x_map = [mapping[x] for x in dbg['16s_md5']]
+        mappings_list.append(x_map)
+
+    # get coverages
+    coverages = list(otus['sample1'])
+
+    print("X VALUES", x_values_list)
+
+    solution = multi_solver(x_values_list, mappings_list, coverages)
+    print(solution)
+
+
+
+
