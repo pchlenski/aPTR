@@ -9,6 +9,7 @@ from ..util.simulation import *
 from ..db import *
 import timeit
 from src.multi_solver import multi_solver
+from src.solver import solver
 
 def test_1():
     """
@@ -129,7 +130,7 @@ def test_6(dd="./data/", ex_dir="./out/complete/", scale=1):
     matrix = generate_otu_matrix(db, ptrs, covs, scale=scale)
     print(matrix)
 
-def test_7(database, genome='325240.15', ptr=False, initialization="zero"):
+def test_7(database, genome='325240.15', ptr=False, **solver_args):
     """
     Generate and test coverage from a genome
     """
@@ -148,16 +149,13 @@ def test_7(database, genome='325240.15', ptr=False, initialization="zero"):
     coverages.loc[genome,"sample1"] = coverage
     otus = generate_otu_matrix(database, ptrs, coverages)
 
-    # normalize
-    otus["sample1"] = otus["sample1"] / np.sum(otus["sample1"])
-
-    ptr_est = database.solve_matrix(otus, initialization=initialization)["ptr"].iloc[0]
+    ptr_est = database.solve_matrix(otus, **solver_args)["ptr"].iloc[0]
 
     print(f"True PTR: {ptr}, Estimated PTR: {ptr_est}")
 
     return ptr_est
 
-def test_8(database, genomes=['325240.15', '407976.7'], initialization="zero"):#, '407976.7', '693973.6']):
+def test_8(database, genomes=['325240.15', '407976.7'], **solver_args):#, '407976.7', '693973.6']):
     """
     Generate and test coverage from two entangled genomes, individually then together
 
@@ -175,7 +173,7 @@ def test_8(database, genomes=['325240.15', '407976.7'], initialization="zero"):#
         ptr = 1 + np.random.rand()
         ptrs.loc[genome,"sample1"] = ptr
         ptrs_list.append(ptr)
-        solution_single = test_7(database, genome, ptr, initialization=initialization)
+        solution_single = test_7(database, genome, ptr, **solver_args)
         estimates.append(solution_single)
         coverages.loc[genome,"sample1"] = 100000
 
@@ -183,15 +181,8 @@ def test_8(database, genomes=['325240.15', '407976.7'], initialization="zero"):#
 
     # build up x_values_list, mappings_list
     dbg2 = database[genomes]
-    # md5s = dbg['16s_md5']
     md5s = list(otus.index)
-    mapping = {}
-    idx = 0
-    for md5 in md5s:
-        if md5 not in mapping:
-            mapping[md5] = idx
-            idx += 1
-            # TODO: VECTORIZE
+    mapping = {x: y for x,y in zip(md5s, np.unique(md5s, return_inverse=True)[1])}
 
     mappings_list = [] 
     x_values_list = []
@@ -209,23 +200,97 @@ def test_8(database, genomes=['325240.15', '407976.7'], initialization="zero"):#
     # get coverages
     coverages = list(otus['sample1'])
 
-
-    solution = multi_solver(x_values_list, mappings_list, coverages, initialization=initialization)
+    solution = multi_solver(x_values_list, mappings_list, coverages, **solver_args)
     ms = solution[:n]
     print("True Single  Multiple")
     for ptr, ptr_estimate_single, m in zip(ptrs_list, estimates, ms):
         print(f"{ptr:.3f}   {ptr_estimate_single:.3f}   {np.exp(-m/2):.3f}")
 
-def test_9(database, n=5):
+def test_9(database, n=5, m=1, **solver_args):
     """
-    Run test_8 on random safe genomes
+    Run test_8 n times on m random safe genomes.
     """
-    safe_genomes = set(database.db[database.db['status'] == 'safe']['genome'])
-    choice = np.random.choice(list(safe_genomes), n, replace=False)
-    print(choice)
-    test_8(database, list(choice), initialization="one-zero")
+    for i in range(n):
+        safe_genomes = set(database.db[database.db['status'] == 'safe']['genome'])
+        choice = np.random.choice(list(safe_genomes), m, replace=False)
+        print(choice)
+        test_8(database, list(choice), **solver_args)
 
+def test_10(database, genome=False, ptr=False, **solver_args):
+    """
+    Generate and test coverage from a random genome with multi_solver() and solver()
+    """
 
+    if not genome:
+        genome = np.random.choice(database.genomes)
+
+    # Taken from test 7: generating data
+    genome_rows = database[genome]
+    x_vals = genome_rows['16s_position'] / genome_rows['size']
+    size = genome_rows['size'].iloc[0]
+
+    if not ptr:
+        ptr = 1 + np.random.rand()
+    ptrs = pd.DataFrame(columns=["sample1"])
+    ptrs.loc[genome,"sample1"] = ptr
+
+    coverage = 1000000
+    coverages = pd.DataFrame(columns=["sample1"])
+    coverages.loc[genome,"sample1"] = coverage
+    otus = generate_otu_matrix(database, ptrs, coverages)
+
+    # Taken from db.solve_genome: preprocessing
+    db_matched = database[genome]
+    x_positions = db_matched['16s_position'] / db_matched['size']
+
+    # Build up mappings
+    md5s_matched = db_matched['16s_md5']
+    mapping = {}
+    idx = 0
+    # TODO: vectorize this
+    for md5 in md5s_matched:
+        if md5 not in mapping:
+            mapping[md5] = idx
+            idx += 1
+    print(mapping)
+    x_mapping = [mapping[x] for x in md5s_matched]
+    print(x_mapping)
+    unique, unique_idx = np.unique(md5s_matched, return_inverse=True)
+    print(unique_idx)
+
+    # Sort md5s by their index
+    print(md5s_matched)
+    md5s = [None for _ in mapping]
+    for md5 in mapping:
+        md5s[mapping[md5]] = md5
+    print(md5s)
+    print(unique)
+
+    # Build up coverages
+    coverages = otus["sample1"].reindex(md5s)
+
+    # Send to solver
+    results = solver(
+        x_values=x_positions, 
+        mappings=x_mapping, 
+        coverages=coverages, 
+        **solver_args
+    )
+    ptr_single = np.exp2(-results[0] / 2)
+
+    results2 = multi_solver(
+        x_values_list=[x_positions],
+        mappings_list=[x_mapping],
+        coverages=coverages,
+        **solver_args
+    )
+    ptr_multi = np.exp2(-results[0] / 2)
+
+    print("RESULTS:=======================")
+    print("True PTR PTR-single  PTR-multi")
+    print(f"{ptr:.4f}   {ptr_single:.4f}   {ptr_multi:.4f}")
+    print("TROUBLESHOOTING:===============")
+    print("\n".join([f"{x}\t{y}" for x,y in zip(x_positions, x_mapping)]))
 
 
 

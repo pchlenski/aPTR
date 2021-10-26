@@ -18,7 +18,8 @@ def solver(
     x_values : np.array,
     mappings : np.array,
     coverages : np.array,
-    regularization : float = 0,
+    m_reg : float = 0,
+    b_reg : float = 0,
     initialization : str = "one_zero",
     history : bool = False) -> np.array:
     """
@@ -102,7 +103,7 @@ def solver(
             x_values_reflected += [x]
 
     # build up our equation
-    def func(x, regularization=regularization, history=history): 
+    def func(x, history=history): 
         """
         func(x) represents the system of equations we need to solve to retrieve ptr.
         the input x is array-like with the following structure:
@@ -137,9 +138,9 @@ def solver(
 
         # compute gradients of m and b
         dm = np.sum(x_np * (m * x_np + b - y_np))
-        dm += 2 * regularization * m # L2-regularization
+        dm += 2 * m_reg * m # L2-regularization
         db = np.sum(m * x_np + b - y_np)
-        dm += 2 * regularization * b # L2-regularization
+        dm += 2 * b_reg * b # L2-regularization
 
         # compute gradients for each yi
         y_grads = []

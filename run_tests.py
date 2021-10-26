@@ -14,4 +14,5 @@ db = RnaDB(f"./data/db.pkl", f"./data/collisions.pkl")
 # test_7(db)
 # test_8(db)
 # test_8(db, genomes=["1002804.6", "998674.3"]) # non overlapping genomes, should be OK
-test_9(db, n=1)
+# test_9(db, n=10, m=1, m_reg=0)
+test_10(db)

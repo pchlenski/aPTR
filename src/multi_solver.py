@@ -97,7 +97,7 @@ def multi_solver(
         n is the sum of sizes over all elements of 'coverages'. Tells you which coverage a given element of x_values
         contributes to. Note that an index can occur in multiple list elements.
     coverages:
-        Array_like, each should be <= x_values size. Observed aggregate coverages from mappings.
+        Array_like, each should be <= x_values size. Observed aggregate coverages from mappings. NOT log-scaled!
     oors:
         List of floats corresponding to the [0,1]-normalized origins of replication.
     m-reg:
@@ -123,6 +123,9 @@ def multi_solver(
     l = len(x_values_reflected)
     n = len(coverages)
     total_x = np.sum(len(x) for x in x_values_reflected)
+
+    # Preprocess X values for numpy
+    x_np = [np.array(x) for x in x_values_reflected]
 
     if n == 1:
         raise Exception("Cannot compute PTR from a single coverage bin")
@@ -162,9 +165,6 @@ def multi_solver(
         if len(y_vals) != total_x:
             raise Exception("Numerical error: y_values do not match number of x-values")
 
-        # Preprocess X values for numpy
-        x_np = [np.array(x) for x in x_values_reflected]
-
         # Reshape Y to match X-values
         # TODO: can this be written more nicely?
         y_np = []
@@ -179,19 +179,23 @@ def multi_solver(
         if len(m_vals) != len(b_vals) != len(y_vals) != len(x_np) != len(y_np) != l:
             raise Exception("Length mismatch somewhere in X_vector unpacking phase")
 
-        # Compute gradients of m and b
+        # Compute gradient w/r/t each m_i
         m_grads = [np.sum(2*x*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
-        m_grads = [dm + 2 * m_reg * m for dm,m in zip(m_grads,m_vals)]  # L2-regularization
-        b_grads = [np.sum(2*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
-        b_grads = [db + 2 * b_reg * b for db,b in zip(b_grads,b_vals)] # L2-regularization
+        if m_reg:
+            m_grads = [dm + 2 * m_reg * m for dm,m in zip(m_grads,m_vals)]
 
-        # compute gradients for each yi
+        # Compute gradient w/r/t each b_i
+        b_grads = [np.sum(2*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
+        if b_reg:
+            b_grads = [db + 2 * b_reg * b for db,b in zip(b_grads,b_vals)]
+
+        # Compute gradients w/r/t each y_i,1 : y_i:j in one shot:
         y_grads = []
         for x, y, m, b, mapping in zip(x_np, y_np, m_vals, b_vals, mappings_list):
             d_y = -2 * m * x + b - y
             h = [lambdas[x] for x in mapping]
-            d_h = np.array(lamb) * np.log(2) * np.exp2(y)
-            y_grads += list(d_lamb-d_y) # += forces y_grads to be 1-D
+            d_h = np.array(h) * np.log(2) * np.exp2(y)
+            y_grads += list(d_h-d_y) # += forces y_grads to be 1-D
 
         # Loop over our discrete coverage bins, retrieve our best guesses for their constituent y-values, and get the
         # gradient of the constraint with respect to it.
@@ -205,16 +209,16 @@ def multi_solver(
             # Coverage := sum over (i in B) 2^(y_i) = c_i
             coverage_sum = np.sum(np.exp2(bin_y_vals))
 
-            # actual coverage - coverage bin should be zero
+            # Difference of actual coverage - coverage bin should be zero
             lambda_grads.append(coverage_sum - coverage_val)
 
-        # concatenate all outputs into a single vector
+        # Concatenate all outputs into a single vector
         out = [*m_grads, *b_grads, *y_grads, *lambda_grads]
         if history:
             history += [out]
         return out
 
-    # set params and solve
+    # Set params and solve
     if initialization == 'zero':
         initial_ys = [0] * total_x
     elif initialization == 'random':
@@ -224,7 +228,6 @@ def multi_solver(
         # TODO: implement uniform initialization
     elif initialization == 'one_zero' or initialization == 'one-zero':
         # All coverage goes to leftmost instance
-        # initial_ys = [0] * total_x
         initial_ys = [np.zeros(len(x)) for x in x_values_reflected]
         for coverage_bin in bins:
             i,j = bins[coverage_bin][0]
@@ -232,9 +235,15 @@ def multi_solver(
         initial_ys = [x for y in initial_ys for x in y]
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
-    initial_m = [0] * l
-    initial_b = [1] * l
-    initial_lambdas = [1] * n
+
+    # initial_m = [0] * l
+    # initial_m = [2*(np.min(np.log2(coverages)) - np.max(np.log2(coverages)))] * l
+    initial_m = -1*np.random.rand(l)
+    # initial_b = [0] * l
+    # initial_b = [np.max(np.log2(coverages))] * l
+    initial_b = np.random.rand(l)
+    # initial_lambdas = [0] * n
+    initial_lambdas = np.random.rand(n)
     initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
