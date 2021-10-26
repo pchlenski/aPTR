@@ -129,7 +129,7 @@ def test_6(dd="./data/", ex_dir="./out/complete/", scale=1):
     matrix = generate_otu_matrix(db, ptrs, covs, scale=scale)
     print(matrix)
 
-def test_7(database, genome='325240.15', ptr=False):
+def test_7(database, genome='325240.15', ptr=False, initialization="zero"):
     """
     Generate and test coverage from a genome
     """
@@ -151,13 +151,13 @@ def test_7(database, genome='325240.15', ptr=False):
     # normalize
     otus["sample1"] = otus["sample1"] / np.sum(otus["sample1"])
 
-    ptr_est = database.solve_matrix(otus)["ptr"].iloc[0]
+    ptr_est = database.solve_matrix(otus, initialization=initialization)["ptr"].iloc[0]
 
     print(f"True PTR: {ptr}, Estimated PTR: {ptr_est}")
 
     return ptr_est
 
-def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6']):
+def test_8(database, genomes=['325240.15', '407976.7'], initialization="zero"):#, '407976.7', '693973.6']):
     """
     Generate and test coverage from two entangled genomes, individually then together
 
@@ -175,7 +175,7 @@ def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6
         ptr = 1 + np.random.rand()
         ptrs.loc[genome,"sample1"] = ptr
         ptrs_list.append(ptr)
-        solution_single = test_7(database, genome, ptr)
+        solution_single = test_7(database, genome, ptr, initialization=initialization)
         estimates.append(solution_single)
         coverages.loc[genome,"sample1"] = 100000
 
@@ -210,21 +210,20 @@ def test_8(database, genomes=['325240.15', '407976.7']):#, '407976.7', '693973.6
     coverages = list(otus['sample1'])
 
 
-    solution = multi_solver(x_values_list, mappings_list, coverages, initialization='random')
+    solution = multi_solver(x_values_list, mappings_list, coverages, initialization=initialization)
     ms = solution[:n]
     print("True Single  Multiple")
     for ptr, ptr_estimate_single, m in zip(ptrs_list, estimates, ms):
         print(f"{ptr:.3f}   {ptr_estimate_single:.3f}   {np.exp(-m/2):.3f}")
 
-def test_9(database, n=10):
+def test_9(database, n=5):
     """
     Run test_8 on random safe genomes
     """
-
     safe_genomes = set(database.db[database.db['status'] == 'safe']['genome'])
     choice = np.random.choice(list(safe_genomes), n, replace=False)
     print(choice)
-    test_8(database, list(choice))
+    test_8(database, list(choice), initialization="one-zero")
 
 
 

@@ -166,7 +166,7 @@ class RnaDB():
         sample_id : str,
         otus : pd.DataFrame,
         true_ptrs : pd.DataFrame,
-        regularization : float = 0) -> dict:
+        **solver_args) -> dict:
         """
         Given a genome ID, a DB, and some coverages, estimate the PTR.
 
@@ -219,7 +219,7 @@ class RnaDB():
             x_values=x_positions, 
             mappings=x_mapping, 
             coverages=coverages, 
-            regularization=regularization
+            **solver_args
         )
 
         # Append output to PTRs dataframe
@@ -242,7 +242,7 @@ class RnaDB():
         sample_id : str,
         otus : pd.DataFrame,
         true_ptrs : pd.DataFrame,
-        regularization : float = 0) -> list:
+        **solver_args) -> list:
         """
         Given a sample name, solve all available 16S systems.
 
@@ -283,7 +283,7 @@ class RnaDB():
                 genome_id, sample_id, 
                 otus=otus, 
                 true_ptrs=true_ptrs, 
-                regularization=regularization
+                **solver_args
             )
             out.append(result)
 
@@ -294,7 +294,7 @@ class RnaDB():
         otus : pd.DataFrame,
         true_ptrs : pd.DataFrame = None,
         max_error : float = np.inf,
-        regularization : float = 0) -> pd.DataFrame:
+        **solver_args) -> pd.DataFrame:
         """
         Given a 16S db, OTU read/abundance matrix, and true PTR values (optional), esimate PTRs.
 
@@ -329,8 +329,8 @@ class RnaDB():
             results = self.solve_sample(
                 column, 
                 otus=otus, 
-                true_ptrs=true_ptrs, 
-                regularization=regularization
+                true_ptrs=true_ptrs,
+                **solver_args
             )
             out = out.append(results, ignore_index=True)
 

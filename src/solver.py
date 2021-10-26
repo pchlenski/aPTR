@@ -19,6 +19,7 @@ def solver(
     mappings : np.array,
     coverages : np.array,
     regularization : float = 0,
+    initialization : str = "one_zero",
     history : bool = False) -> np.array:
     """
     Solve a 16S system of equations.
@@ -189,9 +190,10 @@ def solver(
 
     # set params and solve
     initial_ys = [0] * l
-    for bin in bins.keys():
-        first_idx             = bins[bin][0]            # get leftmost element of bin
-        initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
+    if initialization == 'one_zero':
+        for bin in bins.keys():
+            first_idx             = bins[bin][0]            # get leftmost element of bin
+            initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
     initial_lambdas = [0] * n
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
 

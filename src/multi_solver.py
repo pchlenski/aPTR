@@ -21,17 +21,59 @@ def reflect(x: list, oor: float = 0) -> np.array:
         raise Exception("OOR should be between 0 and 1")
 
     x = np.array(x)
-    x = x - oor
-    x = x % 1
+    x = (x - oor) % 1
     x[x>.5] = 1 - x[x>.5]
     return x
+
+def multi_solver_preprocess(x_values_list, mappings_list, oors):
+    """
+    Preprocessing utility function for multi_solver. Given a list of x values and a list of mappings, create a set of
+    inputs for func
+    """
+
+    # Check that we have the same number of systems overlapping
+    if len(x_values_list) != len(mappings_list):
+        raise Exception("'x_values' and 'mappings' lists are not same size")
+
+    # Reflect x-inputs around origin of replication
+    # TODO: refactor OOR code into RnaDB.solve_genome()
+    if oors:
+        x_values_reflected = [reflect(x,y) for x,y in zip(x_values_list, oors)]
+    else:
+        x_values_reflected = [reflect(x, 0) for x in x_values_list]
+
+    # Elementwise checks on input dimensions. Then, build up inputs
+    bins = defaultdict(list)
+    # Build up function inputs
+    for i, (x_values, mappings) in enumerate(zip(x_values_reflected, mappings_list)):
+        l_i = len(x_values)
+        m_i = len(mappings)
+
+        # Check some of the length issues we may face
+        if l_i != m_i:
+            raise Exception("'x_values' and 'mappings' arrays are not the same size")
+
+        # Check x_values is within [0,1):
+        if np.max(x_values) > 1:
+            raise Exception("max(x_values) > than 1. Please normalize x_values before calling solve_general()")
+
+        # if good, build up an inverse mapping of our constraints
+        # Mappings: implicitly maps [x_position => sequence]
+        # Inverse mappings: maps [sequence => (list_index, x_position)]
+        for j, mapping in enumerate(mappings):
+            bins[mapping].append((i, j))
+
+    return x_values_reflected, bins
+
+
 
 def multi_solver(
     x_values_list : list,
     mappings_list : list,
     coverages : list,
     oors: list = False,
-    regularization : float = 0,
+    m_reg : float = 0,
+    b_reg : float = 0,
     initialization : str = 'zero',
     history : bool = False) -> np.array:
     """
@@ -57,9 +99,11 @@ def multi_solver(
     coverages:
         Array_like, each should be <= x_values size. Observed aggregate coverages from mappings.
     oors:
-        List of floats corresponding to the [0,1]-normalized origins of replication. 
-    regularization:
-        Float. Coefficient of L2 regularization applied to line.
+        List of floats corresponding to the [0,1]-normalized origins of replication.
+    m-reg:
+        Float. Coefficient of L2 regularization applied to line slope.
+    b-reg:
+        Float. Coefficient of L2 regularization applied to line intercept.
     iniziatialization:
         String. Should be one of ['zero', 'random', 'one-zero']. Sets the initial y-value guess.
     history:
@@ -74,79 +118,17 @@ def multi_solver(
     TODO
     """
 
-    # Check that we have the same number of systems overlapping
-    l = len(x_values_list)
-    l2 = len(mappings_list)
+    # Preprocess
+    x_values_reflected, bins = multi_solver_preprocess(x_values_list, mappings_list, oors)
+    l = len(x_values_reflected)
     n = len(coverages)
-    if l != l2:
-        raise Exception("'x_values' and 'mappings' lists are not same size")
-    elif n == 1:
+    total_x = np.sum(len(x) for x in x_values_reflected)
+
+    if n == 1:
         raise Exception("Cannot compute PTR from a single coverage bin")
-    total_x = np.sum(len(x) for x in x_values_list)
-
-    # Check that coverages are well-behaved
-    # TODO: fix this; commented out for now
-    # if set(mappings) != set(range(n)):
-    #     raise Exception("entries of 'mapping' are not 0-indexed integers")
-
-    # Reflect x-inputs around origin of replication
-    # TODO: refactor OOR code into RnaDB.solve_genome()
-    if oors:
-        x_values_list = [reflect(x,y) for x,y in zip(x_values_list, oors)]
-    else:
-        x_values_list = [reflect(x, 0) for x in x_values_list]
-
-    # Elementwise checks on input dimensions
-    # Then, build up inputs
-    bins = defaultdict(list)
-    # Build up function inputs
-    for i, (x_values, mappings) in enumerate(zip(x_values_list, mappings_list)):
-        l_i = len(x_values)
-        m_i = len(mappings)
-
-        # Check some of the length issues we may face
-        if l_i != m_i:
-            raise Exception("'x_values' and 'mappings' arrays are not the same size")
-        # elif n > l_i:
-            # raise Exception("'coverages' is larger than 'x_values'")
-        elif l_i == n:
-            # warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
-            pass
-
-        # Check x_values is within [0,1):
-        if np.max(x_values) > 1:
-            raise Exception("Maximum element of x_values is greater than 1. Please normalize x values by genome length before calling solve_general()")
-
-        # Check that our coverages are well-behaved
-        elif len(set(mappings)) > len(coverages):
-            raise Exception("'coverages' does not have enough entries for the mapping provided.")
-        elif len(set(mappings)) < len(coverages):
-            pass
-            # TODO: Check if this needs to be fixed/re-raised
-            # raise Exception("'coverages' has too many entries for the mapping provided.")
-
-        # if good, build up an inverse mapping of our constraints
-        # Mappings: implicitly maps [x_position => sequence]
-        # Inverse mappings: maps [sequence => (list_index, x_position)]
-        for idx, mapping in enumerate(mappings):
-            bins[mapping].append((i, idx))
-
-        # TODO: check that coverages make sense in the context of the mappings
-        # i.e. no [coverage / number of operons in bin] should be more than 2x any other
-
-    """
-    Old function (single case):
-    X = < m, b, y_1, ..., y_n, lambda_1, ..., lambda_m >
-
-    New function (multimap case):
-    X = < m_1, ..., m_l, b_1, ... b_l, y_11, ... y_1n_1, ... y_l1, ... y_ln_l, lambda_1, ..., lambda_m >
-    Main differences:
-      * Fit l different lines simultaneously
-      * Coverage constraints go from 2^(y_i) + 2^(y_j) = c_{ij} to 2^{y_ij} + 2^{y_kl} = c_{ijkl}
-    """
 
     # build up our equation
-    def func(x, regularization=regularization, history=history): 
+    def func(X, history=history):
         """
         func(x) represents the system of equations we need to solve to retrieve ptr.
         the input x is array-like with the following structure:
@@ -159,34 +141,35 @@ def multi_solver(
         * lambda_1:m are lagrange multipliers for our constraints
 
         func(x) inherits the following variables from solve_general:
-        * l1                Length of x_values_list, coverages_list, mappings_list
+        * l                Length of x_values_list, coverages_list, mappings_list
         * total_size        Sum of coverage bin sizes
         * x_values_list     List of x-coordinates in [0,1) reflected about terminus where x > 0.5
         * coverages_list    List of bin coverages
         * mappings_list     List of mappings. For each coverage bin, lists the constituent 16S copy INDICES
+        * m_reg             L2 penalty for line slope
+        * b_reg             L2 penalty for line intercept
         * bins              Inverse of mappings. at each INDEX, gives a list of (genome index, coverage bin) tuples.
         * history           Object for keeping track of training history
         """
 
         # Unpack variables from vector
-        m_vals = x[:l]
-        b_vals = x[l : 2*l]
-        y_vals = x[2*l : -n] # Everything between m, b, and lagrange is y-values
-        lambdas = x[-n:] # Last n elements are lagrange multipliers
+        m_vals = X[:l]
+        b_vals = X[l : 2*l]
+        y_vals = X[2*l : -n] # Everything between m, b, and lagrange is y-values
+        lambdas = X[-n:] # Last n elements are lagrange multipliers
 
         # More sanity checks: Y inputs
         if len(y_vals) != total_x:
-            print(f"{len(y_vals)} != {total_x}")
-            print(f"Y vals: {y_vals}")
-            print(f"X vals: {[len(_x) for _x in x_values_list]}")
             raise Exception("Numerical error: y_values do not match number of x-values")
 
-        # Preprocess for numpy
-        # Reshape y to match v-values
-        x_np = [np.array(x) for x in x_values_list]
+        # Preprocess X values for numpy
+        x_np = [np.array(x) for x in x_values_reflected]
+
+        # Reshape Y to match X-values
+        # TODO: can this be written more nicely?
         y_np = []
         y_index = 0
-        for x in x_values_list:
+        for x in x_values_reflected:
             y_vals_matched = y_vals[y_index : y_index + len(x)]
             y_vals_match = np.array(y_vals_matched)
             y_np.append(y_vals_matched)
@@ -197,61 +180,36 @@ def multi_solver(
             raise Exception("Length mismatch somewhere in X_vector unpacking phase")
 
         # Compute gradients of m and b
-        # OLD FORMULA, 1_D case: dm = np.sum(x_np * (m * x_np + b - y_np))
-        dm_vals = [np.sum(x*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
-        dm_vals = [dm + 2 * regularization * m for dm,m in zip(dm_vals,m_vals)]  # L2-regularization
-        # OLD FORMULA, 1-D case: db = np.sum(m * x_np + b - y_np)
-        db_vals = [np.sum(m*x+b-y) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
-        db_vals = [db + 2 * regularization * b for db,b in zip(db_vals,b_vals)] # L2-regularization
+        m_grads = [np.sum(2*x*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
+        m_grads = [dm + 2 * m_reg * m for dm,m in zip(m_grads,m_vals)]  # L2-regularization
+        b_grads = [np.sum(2*(m*x+b-y)) for x,y,m,b in zip(x_np,y_np,m_vals,b_vals)]
+        b_grads = [db + 2 * b_reg * b for db,b in zip(b_grads,b_vals)] # L2-regularization
 
         # compute gradients for each yi
         y_grads = []
-
-        # Iterate over db entries first first
         for x, y, m, b, mapping in zip(x_np, y_np, m_vals, b_vals, mappings_list):
-            y_grads_local = []
-            for xi, yi, mi in zip(x, y, mapping):
-                """
-                Loop over our (x, y) pairs, using the 'mappings' input to work it all out.
-                The equation for each y_i is as follows:
+            d_y = -2 * m * x + b - y
+            h = [lambdas[x] for x in mapping]
+            d_h = np.array(lamb) * np.log(2) * np.exp2(y)
+            y_grads += list(d_lamb-d_y) # += forces y_grads to be 1-D
 
-                 df                                                y_i
-                ---- = -2( mx_i + b - y_i ) = lambda_j * log(2) * 2
-                dy_i
-
-                If we let c_j be constraint j, i.e. the aggregate coverage that y_i goes
-                into, then the index of c_j is stored in mappings[x_i], hence we can use
-                lambdas[m_i] to get the corresponding Lagrange multiplier for it
-                """
-                dy = -2 * (m * xi + b - yi)
-                dlambda = lambdas[mi] * np.log(2) * (2 ** yi)
-                y_grads.append(dy - dlambda)
-                # y_grads_local.append(dy - dlambda)
-            # y_grads.append(y_grads_local)
-
-        # compute constraints
-        constraint_eqs = []
+        # Loop over our discrete coverage bins, retrieve our best guesses for their constituent y-values, and get the
+        # gradient of the constraint with respect to it.
+        lambda_grads = []
         for coverage_bin in bins:
-            """
-            Loop over our discrete coverage bins, retrieve our best guesses for their
-            constituent y-values, and get the gradient of the constraint with respect 
-            to it. Coverage constraints take the following form:
-             __
-            \  '          y_i
-            /__, i in S  2    = c_i
+            # Get coverages, indices, retrieve their values
+            coverage_val = coverages[coverage_bin]
+            bin_x_vals = bins[coverage_bin]
+            bin_y_vals = [y_np[i][j] for i,j in bin_x_vals]
 
-            TODO: 
-            Handle cases where the constraint is simply of the form 2^{y_i} = c_j,
-            no summation required
-            """
-            coverage_val = coverages[coverage_bin] # get actual bin coverage
-            bin_x_vals = bins[coverage_bin] # get indices
-            bin_y_vals = [y_np[i][j] for i,j in bin_x_vals] # then retrieve their values
-            coverage_sum = np.sum(np.exp2(bin_y_vals)) # sum exponentiation to get coverage
-            constraint_eqs.append(coverage_sum - coverage_val)
+            # Coverage := sum over (i in B) 2^(y_i) = c_i
+            coverage_sum = np.sum(np.exp2(bin_y_vals))
+
+            # actual coverage - coverage bin should be zero
+            lambda_grads.append(coverage_sum - coverage_val)
 
         # concatenate all outputs into a single vector
-        out = [*dm_vals, *db_vals, *y_grads, *constraint_eqs]
+        out = [*m_grads, *b_grads, *y_grads, *lambda_grads]
         if history:
             history += [out]
         return out
@@ -261,14 +219,22 @@ def multi_solver(
         initial_ys = [0] * total_x
     elif initialization == 'random':
         initial_ys = .1 * np.random.rand(total_x)
-    elif initialization == 'one_zero':
+    elif initialization == 'uniform':
         raise NotImplementedError()
-        # TODO: Implement one-zero initialization
+        # TODO: implement uniform initialization
+    elif initialization == 'one_zero' or initialization == 'one-zero':
+        # All coverage goes to leftmost instance
+        # initial_ys = [0] * total_x
+        initial_ys = [np.zeros(len(x)) for x in x_values_reflected]
+        for coverage_bin in bins:
+            i,j = bins[coverage_bin][0]
+            initial_ys[i][j] = np.log2(coverages[coverage_bin])
+        initial_ys = [x for y in initial_ys for x in y]
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
     initial_m = [0] * l
-    initial_b = [0] * l
-    initial_lambdas = [0] * n
+    initial_b = [1] * l
+    initial_lambdas = [1] * n
     initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
