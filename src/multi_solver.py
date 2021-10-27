@@ -236,12 +236,12 @@ def multi_solver(
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
 
-    # initial_m = [0] * l
+    initial_m = [0] * l
     # initial_m = [2*(np.min(np.log2(coverages)) - np.max(np.log2(coverages)))] * l
-    initial_m = -1*np.random.rand(l)
-    # initial_b = [0] * l
+    # initial_m = -1*np.random.rand(l)
+    initial_b = [0] * l
     # initial_b = [np.max(np.log2(coverages))] * l
-    initial_b = np.random.rand(l)
+    # initial_b = np.random.rand(l)
     # initial_lambdas = [0] * n
     initial_lambdas = np.random.rand(n)
     initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]

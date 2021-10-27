@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from ..util.simulation import *
 from ..db import *
 import timeit
-from src.multi_solver import multi_solver
-from src.solver import solver
+from ...multi_solver import multi_solver
+from ..solver import solver
 
 def test_1():
     """
@@ -284,13 +284,15 @@ def test_10(database, genome=False, ptr=False, **solver_args):
         coverages=coverages,
         **solver_args
     )
-    ptr_multi = np.exp2(-results[0] / 2)
+    ptr_multi = np.exp2(-results2[0] / 2)
 
     print("RESULTS:=======================")
     print("True PTR PTR-single  PTR-multi")
     print(f"{ptr:.4f}   {ptr_single:.4f}   {ptr_multi:.4f}")
     print("TROUBLESHOOTING:===============")
     print("\n".join([f"{x}\t{y}" for x,y in zip(x_positions, x_mapping)]))
+
+    return genome, ptr, ptr_single, ptr_multi
 
 
 
