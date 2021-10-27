@@ -216,7 +216,7 @@ def test_9(database, n=5, m=1, **solver_args):
         print(choice)
         test_8(database, list(choice), **solver_args)
 
-def test_10(database, genome=False, ptr=False, **solver_args):
+def test_10(database, genome=False, ptr=False, n=1, **solver_args):
     """
     Generate and test coverage from a random genome with multi_solver() and solver()
     """
@@ -269,22 +269,28 @@ def test_10(database, genome=False, ptr=False, **solver_args):
     # Build up coverages
     coverages = otus["sample1"].reindex(md5s)
 
-    # Send to solver
-    results = solver(
-        x_values=x_positions, 
-        mappings=x_mapping, 
-        coverages=coverages, 
-        **solver_args
-    )
-    ptr_single = np.exp2(-results[0] / 2)
+    ptrs_single = []
+    ptrs_multi = []
+    for i in range(n):
+        # Send to solver
+        results = solver(
+            x_values=x_positions, 
+            mappings=x_mapping, 
+            coverages=coverages, 
+            **solver_args
+        )
+        ptrs_single.append(np.exp2(-results[0] / 2))
 
-    results2 = multi_solver(
-        x_values_list=[x_positions],
-        mappings_list=[x_mapping],
-        coverages=coverages,
-        **solver_args
-    )
-    ptr_multi = np.exp2(-results2[0] / 2)
+        results2 = multi_solver(
+            x_values_list=[x_positions],
+            mappings_list=[x_mapping],
+            coverages=coverages,
+            **solver_args
+        )
+        ptrs_multi.append(np.exp2(-results2[0] / 2))
+
+    ptr_single = np.median(ptrs_single)
+    ptr_multi = np.median(ptrs_multi)
 
     print("RESULTS:=======================")
     print("True PTR PTR-single  PTR-multi")
