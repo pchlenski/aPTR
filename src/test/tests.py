@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from ..util.simulation import *
 from ..db import *
 import timeit
-from ...multi_solver import multi_solver
+from ..multi_solver import multi_solver
 from ..solver import solver
 
 def test_1():
