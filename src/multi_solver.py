@@ -232,7 +232,7 @@ def multi_solver(
         initial_ys = [np.zeros(len(x)) for x in x_values_reflected]
         for coverage_bin in bins:
             i,j = bins[coverage_bin][0]
-            initial_ys = np.log(coverages[i][j] + 1e-5)
+            initial_ys[i][j] = np.log2(coverages[coverage_bin] + 1e-5)
         initial_ys = [x for y in initial_ys for x in y]
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
