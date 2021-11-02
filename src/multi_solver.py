@@ -194,7 +194,8 @@ def multi_solver(
         for x, y, m, b, mapping in zip(x_np, y_np, m_vals, b_vals, mappings_list):
             d_y = -2 * m * x + b - y
             h = [lambdas[x] for x in mapping]
-            d_h = np.array(h) * np.log(2) * np.exp2(y)
+            # d_h = np.array(h) * np.log(2) * np.exp2(y)
+            d_h = np.array(h) * np.exp(y)
             y_grads += list(d_h-d_y) # += forces y_grads to be 1-D
 
         # Loop over our discrete coverage bins, retrieve our best guesses for their constituent y-values, and get the
@@ -231,19 +232,14 @@ def multi_solver(
         initial_ys = [np.zeros(len(x)) for x in x_values_reflected]
         for coverage_bin in bins:
             i,j = bins[coverage_bin][0]
-            initial_ys[i][j] = np.log2(coverages[coverage_bin] + 1e-6) # 1e-6 for numerical stability
+            initial_ys = np.log(coverages[coverage_bin] + 1e-5)
         initial_ys = [x for y in initial_ys for x in y]
     else:
         raise Exception(f"initialization method '{initialization}' does not exist!")
 
     initial_m = [0] * l
-    # initial_m = [2*(np.min(np.log2(coverages)) - np.max(np.log2(coverages)))] * l
-    # initial_m = -1*np.random.rand(l)
     initial_b = [0] * l
-    # initial_b = [np.max(np.log2(coverages))] * l
-    # initial_b = np.random.rand(l)
-    # initial_lambdas = [0] * n
-    initial_lambdas = np.random.rand(n)
+    initial_lambdas = [0] * n
     initial_values = [*initial_m, *initial_b, *initial_ys, *initial_lambdas]
 
     # initialize to lump all coverage to the leftmost points
