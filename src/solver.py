@@ -66,8 +66,7 @@ def solver(
         raise Exception("'x_values' and 'mappings' arrays are not the same size")
     elif n > l:
         raise Exception("'coverages' is larger than 'x_values'")
-    elif l == n:
-        warnings.warn("All RNAs map uniquely to a coverage. Computation is trivial")
+
     # simply proceed with the rest
     elif n == 1:
         raise Exception("Cannot compute PTR from a single coverage bin")
