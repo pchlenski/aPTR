@@ -157,7 +157,8 @@ def solver(
             lambdas[m_i] to get the corresponding Lagrange multiplier for it
             """
             dy       = -2 * (m * xi + b - yi)
-            dlambda  = lambdas[mi] * np.log(2) * (2 ** yi)
+            # dlambda  = lambdas[mi] * np.log(2) * (2 ** yi)
+            dlambda = lambdas[mi] * np.exp(yi)
             y_grads += [dy - dlambda] 
 
         # compute constraints
@@ -193,7 +194,8 @@ def solver(
     if initialization == 'one_zero':
         for bin in bins.keys():
             first_idx             = bins[bin][0]            # get leftmost element of bin
-            initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
+            # initial_ys[first_idx] = np.log2(coverages[bin]) # give it all the coverage
+            initial_ys[first_idx] = np.log(coverages[bin])
     initial_lambdas = [0] * n
     initial_values = [0, 0, *initial_ys, *initial_lambdas]
 
