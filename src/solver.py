@@ -178,8 +178,8 @@ def solver(
             """
             coverage_val    = coverages[bin]                          # get actual bin coverage
             bin_x_vals      = bins[bin]                               # get indices
-            bin_y_vals      = [ y_values[idx] for idx in bin_x_vals ] # then retrieve their values
-            coverage_sum    = np.sum( np.exp2(bin_y_vals) )           # sum exponentiation to get coverage
+            bin_y_vals      = [y_values[idx] for idx in bin_x_vals]   # then retrieve their values
+            coverage_sum    = np.sum(np.exp(bin_y_vals))              # sum exponentiation to get coverage
             constraint_eqs += [coverage_sum - coverage_val]
 
         # concatenate all outputs into a single vector
