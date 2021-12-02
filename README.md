@@ -69,3 +69,55 @@ coptr index ./data/seqs_complete ~/coptr_16s/dbs/complete/index
 # read mapping
 coptr map ~/coptrs_16s/dbs/draft/index ./out/complete_1e5 ~/coptr_16s/bam
 ```
+
+## VSEARCH pipeline for generating OTUs
+It is important to process FASTQ reads directly because aPTR does not tolerate clustering OTUs. Only exact subsequence matches are allowed. For this study, we used PRJNA695570: Human gut metagenomes of healthy mothers and their children. According to NCBI SRA, the samples are prepared as follows:
+
+>Design: Amplicon fragments are PCR-amplified from the DNA in duplicate using separate template dilutions using the high-fidelity Phusion polymerase. A single round of PCR was done using "fusion primers" (Illumina adaptors + indices + specific regions) targeting the V4V5 region of the 16S rRNA gene (515FB=GTGYCAGCMGCCGCGGTAA and 926R=CCGYCAATTYMTTTRAGTTT). PCR products were verified visually by running on a high-throughput Hamilton Nimbus Select robot using Coastal Genomics Analytical Gels. The PCR reactions from the same samples are pooled in one plate, then cleaned-up and normalized using the high-throughput Charm Biotech Just-a-Plate 96-well Normalization Kit. Up to 380 samples were then pooled to make one library which was then quantified fluorometrically before sequencing.
+
+Accordingly, the pipeline (which is automated via Perl script in `vsearch/pipeline.pl`) was constructed as follows:
+
+For each sample:
+```bash
+# Remove adapter contamination
+cutadapt \
+    -g GTGYCAGCMGCCGCGGTAA \
+    -G CCGYCAATTYMTTTRAGTTT \
+    -o ./trimmed/$SAMPLE_pass_1.fastq \
+    -p ./trimmed/$SAMPLE_pass_2.fastq \
+    ./reads/$SAMPLE_pass_1.fastq.gz \
+    ./reads/$SAMPLE_pass_2.fastq.gz
+
+# Merge paired-end FASTQ reads
+vsearch --fastq_mergepairs ./trimmed/$SAMPLE_pass_1.fastq \
+    --reverse ./trimmed/$SAMPLE_pass_2.fastq \
+    --threads 12 \
+    --fastqout ./merged/$SAMPLE.merged.fastq \
+    --fastq_eeout
+
+# Quality metrics, filtering, and dereplication
+vsearch --fastq_eestats ./merged/$SAMPLE.merged.fastq --output ./stats/$SAMPLE.stats
+vsearch --fastq_filter ./merged/$SAMPLE.merged.fastq \
+    --fastq_maxee 1.0 \
+    --fastq_minlen 225 \
+    --fastq_maxns 0 \
+    --fastaout ./filtered/$SAMPLE.filtered.fasta \
+    --fasta_width 0
+vsearch --derep_fulllength ./filtered/$SAMPLE.filtered.fasta \
+    --threads 12 \
+    --strand plus \
+    --sizeout \
+    --relabel $SAMPLE. \
+    --output ./derep/$SAMPLE.derep.fasta \
+    --fasta_width 0
+```
+
+Then, the samples are merged and processed into a single OTU table:
+```bash
+cat ./derep/* > ./all.fasta
+vsearch --usearch_global path/all.fasta \
+    --threads 12 \
+    --id 1.0 \
+    --db ../db.fasta \
+    --otutabout ./all.tsv
+```
