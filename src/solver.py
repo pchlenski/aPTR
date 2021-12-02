@@ -21,6 +21,7 @@ def solver(
     m_reg : float = 0,
     b_reg : float = 0,
     initialization : str = "one_zero",
+    normalize : bool = True,
     history : bool = False) -> np.array:
     """
     Solve a 16S system of equations.
@@ -100,6 +101,9 @@ def solver(
             x_values_reflected += [1 - x]
         else:
             x_values_reflected += [x]
+
+    if normalize:
+        coverages /= np.sum(coverages) # idempotent, don't need to check sum
 
     # build up our equation
     def func(x, history=history): 

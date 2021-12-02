@@ -75,6 +75,7 @@ def multi_solver(
     m_reg : float = 0,
     b_reg : float = 0,
     initialization : str = 'zero',
+    normalize : bool = True,
     history : bool = False) -> np.array:
     """
     Solve a 16S system of equations.
@@ -129,6 +130,9 @@ def multi_solver(
 
     if n == 1:
         raise Exception("Cannot compute PTR from a single coverage bin")
+
+    if normalize:
+        coverages /= np.sum(coverages) # idempotent, don't need to check sum
 
     # build up our equation
     def func(X, history=history):
