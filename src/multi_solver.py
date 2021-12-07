@@ -88,6 +88,10 @@ def multi_solver(
         equations representing the appropriate behavior of the Lagrange multipliers
     5.  Use scipy fsolve method to find the roots of this system of equations
 
+    To obtain PTR predictions, do the following:
+    1.  Take all slopes (first l values of output, where l = #{genomes})
+    2.  Take ptr = np.exp2(-slope/2)
+
     Args:
     -----
     x_values_list:
@@ -112,7 +116,8 @@ def multi_solver(
 
     Returns:
     --------
-    A vector [ m, b, y1, ..., y_n, c_1, ..., c_n ] of system of equation solutions.
+    A vector of system of equation solutions:
+        [ m_1, ... m_l, b_1, ... b_l, y_11, ..., y_1n_1, ... y_l1, ... y_ln_l, c_1, ..., c_m ]
 
     Raises:
     -------
