@@ -9,6 +9,7 @@ N_THREADS = 4
 FASTQ_MAX_EE = 1.0
 FASTQ_MIN_LEN = 225
 FASTQ_MAX_NS = 0
+FASTQ_QMAX = 93
 
 def exec(cmd, verbose):
     if verbose:
@@ -16,7 +17,7 @@ def exec(cmd, verbose):
     out = os.system(cmd)
     if out != 0:
         print(f"Failed to execute command:\t{cmd}")
-        raise Exception("out status is {out}")
+        raise Exception(f"out status is {out}")
 
 def process_sample(
     prefix : str,
@@ -60,8 +61,8 @@ def process_sample(
         exec(f"cp {out1} {out3}", verbose)
 
     # Quality stuff
-    exec(f"{VSEARCH} --fastq_eestats {out3} --output {out4}", verbose)
-    exec(f"{VSEARCH} --fastq_filter {out3} --fastq_maxee {FASTQ_MAX_EE} --fastq_minlen {FASTQ_MIN_LEN} --fastq_maxns {FASTQ_MAX_NS} --fastaout {out5} --fasta_width 0", verbose)
+    exec(f"{VSEARCH} --fastq_eestats2 {out3} --output {out4} --fastq_qmax {FASTQ_QMAX}", verbose)
+    exec(f"{VSEARCH} --fastq_filter {out3} --fastq_maxee {FASTQ_MAX_EE} --fastq_minlen {FASTQ_MIN_LEN} --fastq_maxns {FASTQ_MAX_NS} --fastaout {out5} --fastq_qmax {FASTQ_QMAX} --fasta_width 0", verbose)
     exec(f"{VSEARCH} --derep_fulllength {out5} --strand plus --sizeout --relabel {prefix}. --output {out6} --fasta_width 0", verbose)
 
     return True
