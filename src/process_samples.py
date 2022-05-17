@@ -1,8 +1,8 @@
 import os
 
 # Path stuff
-CUTADAPT = "/Users/phil/opt/anaconda3/envs/vsearch/bin/cutadapt"
-VSEARCH = "/Users/phil/opt/anaconda3/envs/vsearch/bin/vsearch"
+CUTADAPT = "cutadapt"
+VSEARCH = "vsearch"
 
 # System variables
 N_THREADS = 4
@@ -13,7 +13,10 @@ FASTQ_MAX_NS = 0
 def exec(cmd, verbose):
     if verbose:
         print(cmd)
-    os.system(cmd)
+    out = os.system(cmd)
+    if out != 0:
+        print(f"Failed to execute command:\t{cmd}")
+        raise Exception("out status is {out}")
 
 def process_sample(
     prefix : str,
