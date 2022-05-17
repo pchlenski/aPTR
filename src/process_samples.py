@@ -10,6 +10,11 @@ FASTQ_MAX_EE = 1.0
 FASTQ_MIN_LEN = 225
 FASTQ_MAX_NS = 0
 
+def exec(cmd, verbose):
+    if verbose:
+        print(cmd)
+    os.system(cmd)
+
 def process_sample(
     prefix : str,
     suffix: str,
@@ -17,7 +22,8 @@ def process_sample(
     adapter2 : str,
     in_dir : str,
     out_dir : str,
-    paired : bool
+    paired : bool,
+    verbose : bool,
     ) -> bool:
     """ Paired version """
 
@@ -35,23 +41,25 @@ def process_sample(
         out2 = f"{out_dir}/trimmed/{prefix}_2{suffix}" # Trimmed mate pair 2
 
         # Cutadapt part
-        os.system(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}")
+        exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
 
         # Merge pairs
-        os.system(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout")
+        exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
 
     else:
         path1 = f"{in_dir}/{prefix}{suffix}"
         out1 = f"{out_dir}/trimmed/{prefix}{suffix}"
 
         # Cutadapt
-        os.system(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}")
-        os.system(f"cp {out1} {out3}")
+        exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose)
+
+        # Just copy rather than merging
+        exec(f"cp {out1} {out3}", verbose)
 
     # Quality stuff
-    os.system(f"{VSEARCH} --fastq_eestats {out3} --output {out4}")
-    os.system(f"{VSEARCH} --fastq_filter {out3} --fastq_maxee {FASTQ_MAX_EE} --fastq_minlen {FASTQ_MIN_LEN} --fastq_maxns {FASTQ_MAX_NS} --fastaout {out5} --fasta_width 0")
-    os.system(f"{VSEARCH} --derep_fulllength {out5} --threads {N_THREADS} --strand plus --sizeout --relabel {prefix}. --output {out6} --fasta_width 0")
+    exec(f"{VSEARCH} --fastq_eestats {out3} --output {out4}", verbose)
+    exec(f"{VSEARCH} --fastq_filter {out3} --fastq_maxee {FASTQ_MAX_EE} --fastq_minlen {FASTQ_MIN_LEN} --fastq_maxns {FASTQ_MAX_NS} --fastaout {out5} --fasta_width 0", verbose)
+    exec(f"{VSEARCH} --derep_fulllength {out5} --strand plus --sizeout --relabel {prefix}. --output {out6} --fasta_width 0", verbose)
 
     return True
 
@@ -60,6 +68,7 @@ def process_samples(
     path : str,
     adapter1 : str, 
     adapter2 : str,
+    verbose : bool = True,
     ) -> bool:
     """ Process all samples """
 
@@ -94,17 +103,17 @@ def process_samples(
 
     # Step 2: preprocess reads, merge, dereplicate
     for prefix, suffix in paired:
-        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=True)
+        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=True, verbose=verbose)
     for prefix, suffix in unpaired:
-        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=False)
+        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=False, verbose=verbose)
 
     # Step 3: process sequences together
-    os.system(f"cat {out_dir}/derep/* > {out_dir}/all.fasta")
-    os.system(f"{VSEARCH} --derep_fulllength {out_dir}/all.fasta --threads {N_THREADS} --strand plus --sizein --sizeout --output {out_dir}/all.derep.fasta --fasta_width 0")
-    os.system(f"{VSEARCH} --cluster_size {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --strand plus --sizein --sizeout --centroids {out_dir}/all.centroids.fasta --fasta_width 0")
-    os.system(f"{VSEARCH} --sortbysize {out_dir}/all.centroids.fasta --sizein --sizeout --minsize 2 --output {out_dir}/all.sorted.fasta --fasta_width 0")
-    os.system(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta")
-    os.system(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {out_dir}/../db.fasta --otutabout {out_dir}/all.tsv")
-    os.system(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {out_dir}/../db.fasta --otutabout {out_dir}/all.tsv")
+    exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose)
+    exec(f"{VSEARCH} --derep_fulllength {out_dir}/all.fasta --threads {N_THREADS} --strand plus --sizein --sizeout --output {out_dir}/all.derep.fasta --fasta_width 0", verbose)
+    exec(f"{VSEARCH} --cluster_size {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --strand plus --sizein --sizeout --centroids {out_dir}/all.centroids.fasta --fasta_width 0", verbose)
+    exec(f"{VSEARCH} --sortbysize {out_dir}/all.centroids.fasta --sizein --sizeout --minsize 2 --output {out_dir}/all.sorted.fasta --fasta_width 0", verbose)
+    exec(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta", verbose)
+    exec(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {out_dir}/../db.fasta --otutabout {out_dir}/all.tsv", verbose)
+    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {out_dir}/../db.fasta --otutabout {out_dir}/all.tsv", verbose)
 
     return True
