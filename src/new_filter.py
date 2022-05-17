@@ -1,6 +1,8 @@
 import pandas as pd
 import re
 
+DD = "../data/"
+
 primers = {
     '8F' :              'AGAGTTTGATCCTGGCTCAG',
     '27F' :             'AGAGTTTGATCMTGGCTCAG',
@@ -143,3 +145,8 @@ def filter_db(
     ]
 
     return table
+
+def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa"):
+    with open(output_file, "w") as f:
+        for i,(id,seq) in db[["feature", "16s_sequence"]].iterrows():
+            print(f">{id}\n{seq}", file=f)
