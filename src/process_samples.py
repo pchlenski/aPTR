@@ -1,4 +1,5 @@
 import os
+# from settings import *
 
 # Path stuff
 CUTADAPT = "cutadapt"
@@ -28,12 +29,8 @@ def process_sample(
     out_dir : str,
     paired : bool,
     verbose : bool,
-    db : None,
     ) -> bool:
     """ Paired version """
-
-    if db is None:
-        raise Exception("No DB specified!")
 
     # Shared values
     cutadapt_log = f"{out_dir}/stats/{prefix}.cutadapt.log" # Cut-adapt log
@@ -76,6 +73,7 @@ def process_samples(
     path : str,
     adapter1 : str, 
     adapter2 : str,
+    db_path : str,
     verbose : bool = True,
     ) -> bool:
     """ Process all samples """
@@ -118,12 +116,12 @@ def process_samples(
     # Step 3: process sequences together
     exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose)
     exec(f"{VSEARCH} --derep_fulllength {out_dir}/all.fasta --threads {N_THREADS} --strand plus --sizein --sizeout --output {out_dir}/all.derep.fasta --fasta_width 0", verbose)
-    exec(f"{VSEARCH} --cluster_size {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --strand plus --sizein --sizeout --centroids {out_dir}/all.centroids.fasta --fasta_width 0", verbose)
-    exec(f"{VSEARCH} --sortbysize {out_dir}/all.centroids.fasta --sizein --sizeout --minsize 2 --output {out_dir}/all.sorted.fasta --fasta_width 0", verbose)
+    # exec(f"{VSEARCH} --cluster_size {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --strand plus --sizein --sizeout --centroids {out_dir}/all.centroids.fasta --fasta_width 0", verbose)
+    # exec(f"{VSEARCH} --sortbysize {out_dir}/all.centroids.fasta --sizein --sizeout --minsize 2 --output {out_dir}/all.sorted.fasta --fasta_width 0", verbose)
 
-    # Step 4: generate OTU table
-    exec(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta", verbose)
-    exec(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {path}/db.fasta --otutabout {out_dir}/all.tsv", verbose)
-    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {path}/db.fasta --otutabout {out_dir}/all.tsv", verbose)
+    # # Step 4: generate OTU table
+    # exec(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta", verbose)
+    # exec(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
+    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
 
     return True
