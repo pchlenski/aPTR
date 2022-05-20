@@ -153,5 +153,5 @@ def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
             for i,(id,seq) in db[["feature", "16s_sequence"]].iterrows():
                 print(f">{id}\n{seq}", file=f)
         elif method == "seq":
-            for i,seq in db["16s_sequence"].unique():
+            for seq in db["16s_sequence"].unique():
                 print(f">{md5(seq)}\n{seq}", file=f)
