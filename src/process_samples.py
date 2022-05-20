@@ -66,7 +66,7 @@ def process_sample(
         if use_cutadapt:
             exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose)
         else:
-            exec(f"cp {path1} {out1}")
+            exec(f"cp {path1} {out1}", verbose)
 
         # Just copy rather than merging
         exec(f"cp {out1} {out3}", verbose)
