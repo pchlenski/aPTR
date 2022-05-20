@@ -51,7 +51,7 @@ key = {
 
 def find_primer(seq, primer):
     # For cleanliness
-    if primer is None:
+    if primer is None or primer == "":
         return seq
     
     # Turn primer into regex
@@ -67,16 +67,13 @@ def trim_primers(seq, left, right):
     seq = str(seq).lower()
 
     # Left side
-    if left is not None and left != "":
-        trim_left = find_primer(seq, left)
-        seq = trim_left[-1]
+    trim_left = find_primer(seq, left)
+    seq = trim_left[-1]
 
     # Right side
-    if right is not None and right != "":
-        trim_right = find_primer(seq, right)
-        seq = trim_right[0]
+    trim_right = find_primer(seq, right)
+    seq = trim_right[0]
 
-    # Output - this only happens if right and left adapters are found
     return seq
 
 

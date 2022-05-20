@@ -46,7 +46,11 @@ def process_sample(
         out2 = f"{out_dir}/trimmed/{prefix}_2{suffix}" # Trimmed mate pair 2
 
         # Cutadapt part
-        exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
+        if (adapter1 is not None and adapter2 is not None) or (adapter1 != "" and adapter2 != ""):
+            exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
+        else:
+            exec(f"cp path1 out1", verbose)
+            exce(f"cp path2 out2", verbose)
 
         # Merge pairs
         exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
