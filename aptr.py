@@ -14,10 +14,10 @@ if len(sys.argv) < 4:
 elif len(sys.argv) == 4:
     _, path, adapter1, adapter2 = sys.argv
 
-    if adapter1 == "":
-        adapter1 = None
-    if adapter2 == "":
-        adapter2 = None
+    # if adapter1 == "":
+    #     adapter1 = None
+    # if adapter2 == "":
+    #     adapter2 = None
 
     db = filter_db(
         path_to_dnaA = "./data/allDnaA.tsv",

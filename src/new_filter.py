@@ -67,13 +67,15 @@ def trim_primers(seq, left, right):
     seq = str(seq).lower()
 
     # Left side
-    trim_left = find_primer(seq, left)
-    seq = trim_left[-1]
-    
+    if left is not None and left != "":
+        trim_left = find_primer(seq, left)
+        seq = trim_left[-1]
+
     # Right side
-    trim_right = find_primer(seq, right)
-    seq = trim_right[0]
-    
+    if right is not None and right != "":
+        trim_right = find_primer(seq, right)
+        seq = trim_right[0]
+
     # Output - this only happens if right and left adapters are found
     return seq
 
