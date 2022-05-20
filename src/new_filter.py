@@ -52,7 +52,8 @@ key = {
 def find_primer(seq, primer):
     # For cleanliness
     if primer is None or primer == "":
-        return seq
+        return [seq]
+        # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
     
     # Turn primer into regex
     re_primer = ''.join([key[x] for x in primer.lower()])
