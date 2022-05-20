@@ -53,7 +53,7 @@ def process_sample(
             exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
         else:
             exec(f"cp {path1} {out1}", verbose)
-            exce(f"cp {path2} {out2}", verbose)
+            exec(f"cp {path2} {out2}", verbose)
 
         # Merge pairs
         exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
