@@ -155,4 +155,4 @@ def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
         elif method == "seq":
             for seq in db["16s_sequence"].unique():
                 seq = str(seq).lower().encode("utf-8")
-                print(f">{md5(seq)}\n{seq}", file=f)
+                print(f">{md5(seq).hexdigest()}\n{seq}", file=f)
