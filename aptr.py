@@ -16,7 +16,10 @@ elif len(sys.argv) == 4:
         right_primer = adapter2
     )
     db_path = f"{path}/db.fasta"
-    os.mkdir("{path}/aPTR_out")
+    try:
+        os.mkdir(f"{path}/aPTR_out")
+    except FileExistsError:
+        pass
     generate_vsearch_db(db, output_file=f"{path}/aPTR_out/db.fasta")
 
 else:

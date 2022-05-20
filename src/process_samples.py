@@ -122,6 +122,6 @@ def process_samples(
     # # Step 4: generate OTU table
     # exec(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta", verbose)
     # exec(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
-    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
+    exec(f"{VSEARCH} --usearch_global {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
 
     return True
