@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 from src.process_samples import process_samples
@@ -15,12 +17,12 @@ elif len(sys.argv) == 4:
         left_primer = adapter1,
         right_primer = adapter2
     )
-    db_path = f"{path}/db.fasta"
+    db_path = f"{path}/aPTR_out/db.fasta"
     try:
         os.mkdir(f"{path}/aPTR_out")
     except FileExistsError:
         pass
-    generate_vsearch_db(db, output_file=f"{path}/aPTR_out/db.fasta")
+    generate_vsearch_db(db, output_file=db_path)
 
 else:
     _, path, adapter1, adapter2, db_path = sys.argv
