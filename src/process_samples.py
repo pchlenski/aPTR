@@ -39,6 +39,9 @@ def process_sample(
     out5 = f"{out_dir}/filtered/{prefix}.filtered.fasta" # Filtered reads
     out6 = f"{out_dir}/derep/{prefix}.derep.fasta"
 
+    use_cutadapt = (adapter1 is not None and adapter2 is not None) and (adapter1 != "" and adapter2 != "")
+
+
     if paired:
         path1 = f"{in_dir}/{prefix}_1{suffix}" # Reads mate pair 1
         path2 = f"{in_dir}/{prefix}_2{suffix}" # Reads mate pair 2
@@ -46,11 +49,11 @@ def process_sample(
         out2 = f"{out_dir}/trimmed/{prefix}_2{suffix}" # Trimmed mate pair 2
 
         # Cutadapt part
-        if (adapter1 is not None and adapter2 is not None) and (adapter1 != "" and adapter2 != ""):
+        if use_cutadapt:
             exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
         else:
-            exec(f"cp path1 out1", verbose)
-            exce(f"cp path2 out2", verbose)
+            exec(f"cp {path1} {out1}", verbose)
+            exce(f"cp {path2} {out2}", verbose)
 
         # Merge pairs
         exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
@@ -60,7 +63,10 @@ def process_sample(
         out1 = f"{out_dir}/trimmed/{prefix}{suffix}"
 
         # Cutadapt
-        exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose)
+        if use_cutadapt:
+            exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose)
+        else:
+            exec(f"cp {path1} {out1}")
 
         # Just copy rather than merging
         exec(f"cp {out1} {out3}", verbose)
