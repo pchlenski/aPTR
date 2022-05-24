@@ -14,6 +14,9 @@ FASTQ_MAX_NS = 0
 FASTQ_QMAX = 93
 
 def exec(cmd, verbose):
+    """ Utility function to log and execute system calls the way I like it """
+    if isinstance(cmd, list):
+        cmd = " ".join(cmd)
     if verbose:
         print(cmd)
     out = os.system(cmd)
@@ -31,7 +34,7 @@ def process_sample(
     paired : bool,
     verbose : bool,
     ) -> bool:
-    """ Paired version """
+    """ For a single FASTQ/pair of FASTQ files, cut adapters, filter, and dereplicate """
 
     # Shared values
     cutadapt_log = f"{out_dir}/stats/{prefix}.cutadapt.log" # Cut-adapt log
@@ -43,6 +46,7 @@ def process_sample(
     use_cutadapt = (adapter1 is not None and adapter2 is not None) and (adapter1 != "" and adapter2 != "")
 
 
+    # For paired files: cut adapters individually, then merge pairs
     if paired:
         path1 = f"{in_dir}/{prefix}_1{suffix}" # Reads mate pair 1
         path2 = f"{in_dir}/{prefix}_2{suffix}" # Reads mate pair 2
@@ -59,6 +63,7 @@ def process_sample(
         # Merge pairs
         exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
 
+    # For unpaired files, simply cut adapters
     else:
         path1 = f"{in_dir}/{prefix}{suffix}"
         out1 = f"{out_dir}/trimmed/{prefix}{suffix}"
@@ -73,9 +78,22 @@ def process_sample(
         exec(f"cp {out1} {out3}", verbose)
 
     # Quality stuff
-    exec(f"{VSEARCH} --fastq_eestats2 {out3} --output {out4} --fastq_qmax {FASTQ_QMAX}", verbose)
-    exec(f"{VSEARCH} --fastq_filter {out3} --fastq_maxee {FASTQ_MAX_EE} --fastq_minlen {FASTQ_MIN_LEN} --fastq_maxns {FASTQ_MAX_NS} --fastaout {out5} --fastq_qmax {FASTQ_QMAX} --fasta_width 0", verbose)
-    exec(f"{VSEARCH} --derep_fulllength {out5} --strand plus --sizeout --relabel {prefix}. --output {out6} --fasta_width 0", verbose)
+    exec([VSEARCH, "--fastq_eestats2", out3,
+        "--output", out4,
+        "--fastq_qmax", FASTQ_QMAX], verbose)
+    exec([VSEARCH, "--fastq_filter", out3,
+        "--fastq_maxee", FASTQ_MAX_EE,
+        "--fastq_minlen", FASTQ_MIN_LEN,
+        "--fastq_maxns", FASTQ_MAX_NS,
+        "--fastaout", out5, 
+        "--fastq_qmax", FASTQ_QMAX,
+        "--fasta_width", 0], verbose)
+    exec([VSEARCH, "--derep_fulllength", out5,
+        "--strand", "plus",
+        "--sizeout",
+        "--relabel," f"{prefix}.",
+        "--output", out6, 
+        "--fasta_width", 0], verbose)
 
     return True
 
@@ -87,7 +105,7 @@ def process_samples(
     db_path : str,
     verbose : bool = True,
     ) -> bool:
-    """ Process all samples """
+    """ Process all samples in a directory """
 
     # Step 0: relevant preconditions
     files = os.listdir(path)
@@ -126,6 +144,10 @@ def process_samples(
 
     # Step 3: OTU table
     exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose)
-    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
+    exec([VSEARCH, "--usearch_global", f"{out_dir}/all.fasta",
+        "--threads", N_THREADS,
+        "--id 1.0", 
+        "--db", db_path,
+        "--otutabout", f"{out_dir}/all.tsv"], verbose)
 
     return True

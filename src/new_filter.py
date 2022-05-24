@@ -147,6 +147,10 @@ def filter_db(
         '16s_sequence'
     ]
 
+    # Add md5s for legibility/printing
+    seqs = [str(seq).lower().encode("utf-8") for seq in table['16s_sequence']]
+    table['md5'] = [md5(seq).hexdigest() for seq in seqs]
+
     return table
 
 def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
@@ -155,6 +159,6 @@ def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
             for i,(id,seq) in db[["feature", "16s_sequence"]].iterrows():
                 print(f">{id}\n{seq}", file=f)
         elif method == "seq":
-            for seq in db["16s_sequence"].unique():
+            for seq, md5 in db[["16s_sequence", "md5"]].unique():
                 seq = str(seq).lower().encode("utf-8")
-                print(f">{md5(seq).hexdigest()}\n{seq}", file=f)
+                print(f">{md5}\n{seq}", file=f)
