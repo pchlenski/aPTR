@@ -1,5 +1,6 @@
+""" Scripts for running VSEARCH and CUTADAPT on FASTRQ reads """
+
 import os
-# from settings import *
 
 # Path stuff
 CUTADAPT = "cutadapt"
@@ -123,15 +124,8 @@ def process_samples(
     for prefix, suffix in unpaired:
         process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=False, verbose=verbose)
 
-    # Step 3: process sequences together
+    # Step 3: OTU table
     exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose)
-    exec(f"{VSEARCH} --derep_fulllength {out_dir}/all.fasta --threads {N_THREADS} --strand plus --sizein --sizeout --output {out_dir}/all.derep.fasta --fasta_width 0", verbose)
-    # exec(f"{VSEARCH} --cluster_size {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --strand plus --sizein --sizeout --centroids {out_dir}/all.centroids.fasta --fasta_width 0", verbose)
-    # exec(f"{VSEARCH} --sortbysize {out_dir}/all.centroids.fasta --sizein --sizeout --minsize 2 --output {out_dir}/all.sorted.fasta --fasta_width 0", verbose)
-
-    # # Step 4: generate OTU table
-    # exec(f"{VSEARCH} --uchime_denovo {out_dir}/all.sorted.fasta --sizein --sizeout --fasta_width 0 --qmask none --nonchimeras {out_dir}/all.nonchimeras.fasta", verbose)
-    # exec(f"{VSEARCH} --usearch_global {out_dir}/all.nonchimeras.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
-    exec(f"{VSEARCH} --usearch_global {out_dir}/all.derep.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
+    exec(f"{VSEARCH} --usearch_global {out_dir}/all.fasta --threads {N_THREADS} --id 1.0 --db {db_path} --otutabout {out_dir}/all.tsv", verbose)
 
     return True

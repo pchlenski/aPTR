@@ -1,3 +1,5 @@
+""" Scripts for filtering DB by PCR primers """
+
 import pandas as pd
 import re
 from hashlib import md5

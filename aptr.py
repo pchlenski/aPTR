@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
+""" This is the command-line tool that runs the entire aPTR pipeline """
+
 import sys
 import os
+import pickle
 from src.process_samples import process_samples
 from src.matrix_solver import OTUSolver
 from src.new_filter import filter_db, generate_vsearch_db
@@ -13,11 +16,6 @@ if len(sys.argv) < 4:
 # Case when database is not provided in advance
 elif len(sys.argv) == 4:
     _, path, adapter1, adapter2 = sys.argv
-
-    # if adapter1 == "":
-    #     adapter1 = None
-    # if adapter2 == "":
-    #     adapter2 = None
 
     db = filter_db(
         path_to_dnaA = "./data/allDnaA.tsv",
@@ -31,7 +29,9 @@ elif len(sys.argv) == 4:
     except FileExistsError:
         pass
 
+    # Save a reduced database with adapters cut
     generate_vsearch_db(db, output_file=db_path)
+    db.to_pickle(f"{path}/aPTR_out/db.pkl")
 
 # Case when database path is also given
 else:

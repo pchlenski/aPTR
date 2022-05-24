@@ -1,4 +1,4 @@
-# Define key functions
+""" Class for solving OTU matrix """
 
 class OTUSolver():
     def __init__(self, genomes, abundances=None, ptrs=None, coverages=None):
