@@ -108,7 +108,7 @@ def filter_db(
     )
 
     # Add 16S substring
-    table['filtered_seq'] = [trim_primers(x, left_primer, right_primer) for x in table['feature.na_sequence']]
+    table.loc[:,'filtered_seq'] = [trim_primers(x, left_primer, right_primer) for x in table['feature.na_sequence']]
 
     # Iteratively filter on sequence
     diff = 1
@@ -151,7 +151,7 @@ def filter_db(
 
     # Add md5s for legibility/printing
     seqs = [str(seq).lower().encode("utf-8") for seq in table['16s_sequence']]
-    table['md5'] = [md5(seq).hexdigest() for seq in seqs]
+    table.loc[:,'md5'] = [md5(seq).hexdigest() for seq in seqs]
 
     return table
 
@@ -164,6 +164,6 @@ def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
                 print(f">{id}\n{seq}", file=f)
         elif method == "seq":
             for seq in db["16s_sequence"].unique():
-                seq = str(seq).lower().encode("utf-8")
-                md5_hash = md5(seq).hexdigest() # regenerating md5 is easier
+                seq = str(seq).lower()
+                md5_hash = md5(seq.encode("utf-8")).hexdigest() # regenerating md5 is easier
                 print(f">{md5_hash}\n{seq}", file=f)
