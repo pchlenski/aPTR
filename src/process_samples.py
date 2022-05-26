@@ -130,7 +130,7 @@ def process_samples(
             print(f"Skipping making {f}, already exists")
     logfile = f"{out_dir}/log.txt"
     errfile = f"{out_dir}/err.txt"
-    exec(f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt", verbose, logfile, errfile)
+    exec(f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {out_dir}/adapters.txt", verbose, logfile, errfile)
 
     # Step 1: categorize files
     endings = ['.fq.gz', '.fastq.gz', '.fq', '.fastq']
