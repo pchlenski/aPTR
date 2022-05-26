@@ -24,6 +24,8 @@ def exec(cmd, verbose):
         print(f"Failed to execute command:\t{cmd}")
         raise Exception(f"out status is {out}")
 
+
+
 def process_sample(
     prefix : str,
     suffix: str,
@@ -78,6 +80,7 @@ def process_sample(
         exec(f"cp {out1} {out3}", verbose)
 
     # Quality stuff
+    # try:
     exec([VSEARCH, "--fastq_eestats2", out3,
         "--output", out4,
         "--fastq_qmax", FASTQ_QMAX], verbose)
@@ -87,15 +90,18 @@ def process_sample(
         "--fastq_maxns", FASTQ_MAX_NS,
         "--fastaout", out5, 
         "--fastq_qmax", FASTQ_QMAX,
-        "--fasta_width", 0], verbose)
+        "--fasta_width", "0"], verbose)
     exec([VSEARCH, "--derep_fulllength", out5,
         "--strand", "plus",
         "--sizeout",
         "--relabel," f"{prefix}.",
         "--output", out6, 
-        "--fasta_width", 0], verbose)
+        "--fasta_width", "0"], verbose)
+    # except Exception:
+    #     pass
 
     return True
+
 
 
 def process_samples(
