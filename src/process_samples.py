@@ -16,6 +16,7 @@ FASTQ_QMAX = 93
 def exec(cmd, verbose):
     """ Utility function to log and execute system calls the way I like it """
     if isinstance(cmd, list):
+        cmd = [str(x) for x in cmd]
         cmd = " ".join(cmd)
     if verbose:
         print(cmd)
