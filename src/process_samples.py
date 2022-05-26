@@ -95,7 +95,7 @@ def process_sample(
     exec([VSEARCH, "--derep_fulllength", out5,
         "--strand", "plus",
         "--sizeout",
-        "--relabel," f"{prefix}.",
+        "--relabel", f"{prefix}.",
         "--output", out6, 
         "--fasta_width", "0"], verbose)
     # except Exception:
