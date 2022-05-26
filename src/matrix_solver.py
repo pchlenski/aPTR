@@ -1,8 +1,10 @@
 """ Class for solving OTU matrix """
 
+import numpy as np
+
 class OTUSolver():
     def __init__(self, genomes, abundances=None, ptrs=None, coverages=None):
-        """ Initialize 16S system. Assumes 'genomes' is a dict keyed by 'pos' and 'seqs' """
+        """ Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs' """
         
         # Save genome info, just in case, + get matrix sizes
         self.genomes = genomes
@@ -160,19 +162,21 @@ class OTUSolver():
 
         return loss
 
-    def train(self, lr=.0001, tolerance=.001, frequency=1000):
+    def train(self, lr=.0001, tolerance=.001, frequency=1000, max_steps=np.inf, verbose=False):
         """ Learn log-abundances, log-PTRs until convergence in loss """
 
         self.guess()
         i = 0
         loss_diff = np.inf
         last_loss = np.inf
-        while loss_diff > tolerance:
+        while loss_diff > tolerance and i < max_steps:
             i += 1
             loss = self.training_step(lr=lr)
             if i % frequency == 0:
                 loss_diff = last_loss - loss
                 last_loss = loss
+                if verbose:
+                    print(f"{i}\t{last_loss}\t{loss_diff}")
         
         # Save some information about this round of training
         self.best_loss = last_loss

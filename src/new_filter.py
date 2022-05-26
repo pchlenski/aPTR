@@ -6,6 +6,8 @@ from hashlib import md5
 
 DD = "../data/"
 
+
+
 primers = {
     '8F' :              'AGAGTTTGATCCTGGCTCAG',
     '27F' :             'AGAGTTTGATCMTGGCTCAG',
@@ -153,12 +155,15 @@ def filter_db(
 
     return table
 
+
+
 def generate_vsearch_db(db, output_file=f"{DD}vsearch_db.fa", method="seq"):
     with open(output_file, "w+") as f:
         if method == "id":
             for i,(id,seq) in db[["feature", "16s_sequence"]].iterrows():
                 print(f">{id}\n{seq}", file=f)
         elif method == "seq":
-            for seq, md5 in db[["16s_sequence", "md5"]].unique():
+            for seq in db["16s_sequence"].unique():
                 seq = str(seq).lower().encode("utf-8")
-                print(f">{md5}\n{seq}", file=f)
+                md5_hash = md5(seq).hexdigest() # regenerating md5 is easier
+                print(f">{md5_hash}\n{seq}", file=f)
