@@ -40,6 +40,8 @@ def process_sample(
     out_dir : str,
     paired : bool,
     verbose : bool,
+    logfile : str,
+    errfile : str
     ) -> bool:
     """ For a single FASTQ/pair of FASTQ files, cut adapters, filter, and dereplicate """
 
@@ -62,13 +64,13 @@ def process_sample(
 
         # Cutadapt part
         if use_cutadapt:
-            exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose)
+            exec(f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}", verbose, logfile, errfile)
         else:
             exec(f"cp {path1} {out1}", verbose)
             exec(f"cp {path2} {out2}", verbose)
 
         # Merge pairs
-        exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose)
+        exec(f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout", verbose, logfile, errfile)
 
     # For unpaired files, simply cut adapters
     else:
@@ -77,31 +79,31 @@ def process_sample(
 
         # Cutadapt
         if use_cutadapt:
-            exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose)
+            exec(f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}", verbose, logfile, errfile)
         else:
-            exec(f"cp {path1} {out1}", verbose)
+            exec(f"cp {path1} {out1}", verbose, logfile, errfile)
 
         # Just copy rather than merging
-        exec(f"cp {out1} {out3}", verbose)
+        exec(f"cp {out1} {out3}", verbose, logfile, errfile)
 
     # Quality stuff
     try:
         exec([VSEARCH, "--fastq_eestats2", out3,
             "--output", out4,
-            "--fastq_qmax", FASTQ_QMAX], verbose)
+            "--fastq_qmax", FASTQ_QMAX], verbose, logfile, errfile)
         exec([VSEARCH, "--fastq_filter", out3,
             "--fastq_maxee", FASTQ_MAX_EE,
             "--fastq_minlen", FASTQ_MIN_LEN,
             "--fastq_maxns", FASTQ_MAX_NS,
             "--fastaout", out5, 
             "--fastq_qmax", FASTQ_QMAX,
-            "--fasta_width", "0"], verbose)
+            "--fasta_width", "0"], verbose, logfile, errfile)
         exec([VSEARCH, "--derep_fulllength", out5,
             "--strand", "plus",
             "--sizeout",
             "--relabel", f"{prefix}.",
             "--output", out6, 
-            "--fasta_width", "0"], verbose)
+            "--fasta_width", "0"], verbose, logfile, errfile)
     except Exception:
         pass
 
@@ -126,6 +128,9 @@ def process_samples(
             os.mkdir(f)
         except FileExistsError:
             print(f"Skipping making {f}, already exists")
+    logfile = f"{out_dir}/log.txt"
+    errfile = f"{out_dir}/err.txt"
+    exec(f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt", verbose, logfile, errfile)
 
     # Step 1: categorize files
     endings = ['.fq.gz', '.fastq.gz', '.fq', '.fastq']
@@ -149,16 +154,26 @@ def process_samples(
 
     # Step 2: preprocess reads, merge, dereplicate
     for prefix, suffix in paired:
-        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=True, verbose=verbose)
+        process_sample(
+            prefix, suffix,
+            adapter1, adapter2,
+            path, out_dir,
+            paired=True,
+            verbose=verbose, logfile=logfile, errfile=errfile)
     for prefix, suffix in unpaired:
-        process_sample(prefix, suffix, adapter1, adapter2, path, out_dir, paired=False, verbose=verbose)
+        process_sample(
+            prefix, suffix,
+            adapter1, adapter2,
+            path, out_dir,
+            paired=False,
+            verbose=verbose, logfile=logfile, errfile=errfile)
 
     # Step 3: OTU table
-    exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose)
+    exec(f"cat {out_dir}/derep/* > {out_dir}/all.fasta", verbose, logfile=logfile, errfile=errfile)
     exec([VSEARCH, "--usearch_global", f"{out_dir}/all.fasta",
         "--threads", N_THREADS,
         "--id 1.0", 
         "--db", db_path,
-        "--otutabout", f"{out_dir}/all.tsv"], verbose)
+        "--otutabout", f"{out_dir}/all.tsv"], verbose, logfile=logfile, errfile=errfile)
 
     return True
