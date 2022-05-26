@@ -13,13 +13,17 @@ FASTQ_MIN_LEN = 225
 FASTQ_MAX_NS = 0
 FASTQ_QMAX = 93
 
-def exec(cmd, verbose):
+def exec(cmd, verbose, logfile=None, errfile=None):
     """ Utility function to log and execute system calls the way I like it """
     if isinstance(cmd, list):
         cmd = [str(x) for x in cmd]
         cmd = " ".join(cmd)
     if verbose:
         print(cmd)
+    if logfile is not None:
+        cmd = f"{cmd} > {logfile}"
+    if errfile is not None:
+        cmd = f"{cmd} 2> {errfile}"
     out = os.system(cmd)
     if out != 0:
         print(f"Failed to execute command:\t{cmd}")
@@ -81,25 +85,25 @@ def process_sample(
         exec(f"cp {out1} {out3}", verbose)
 
     # Quality stuff
-    # try:
-    exec([VSEARCH, "--fastq_eestats2", out3,
-        "--output", out4,
-        "--fastq_qmax", FASTQ_QMAX], verbose)
-    exec([VSEARCH, "--fastq_filter", out3,
-        "--fastq_maxee", FASTQ_MAX_EE,
-        "--fastq_minlen", FASTQ_MIN_LEN,
-        "--fastq_maxns", FASTQ_MAX_NS,
-        "--fastaout", out5, 
-        "--fastq_qmax", FASTQ_QMAX,
-        "--fasta_width", "0"], verbose)
-    exec([VSEARCH, "--derep_fulllength", out5,
-        "--strand", "plus",
-        "--sizeout",
-        "--relabel", f"{prefix}.",
-        "--output", out6, 
-        "--fasta_width", "0"], verbose)
-    # except Exception:
-    #     pass
+    try:
+        exec([VSEARCH, "--fastq_eestats2", out3,
+            "--output", out4,
+            "--fastq_qmax", FASTQ_QMAX], verbose)
+        exec([VSEARCH, "--fastq_filter", out3,
+            "--fastq_maxee", FASTQ_MAX_EE,
+            "--fastq_minlen", FASTQ_MIN_LEN,
+            "--fastq_maxns", FASTQ_MAX_NS,
+            "--fastaout", out5, 
+            "--fastq_qmax", FASTQ_QMAX,
+            "--fasta_width", "0"], verbose)
+        exec([VSEARCH, "--derep_fulllength", out5,
+            "--strand", "plus",
+            "--sizeout",
+            "--relabel", f"{prefix}.",
+            "--output", out6, 
+            "--fasta_width", "0"], verbose)
+    except Exception:
+        pass
 
     return True
 
