@@ -2,15 +2,16 @@
 
 import numpy as np
 
-class OTUSolver():
+
+class OTUSolver:
     def __init__(self, genomes, abundances=None, ptrs=None, coverages=None):
-        """ Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs' """
-        
+        """Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs'"""
+
         # Save genome info, just in case, + get matrix sizes
         self.genomes = genomes
-        self.seqs = set().union(*[set(genome['seqs']) for genome in genomes])
+        self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
         self.n = len(genomes)
-        self.m = np.sum([len(genome['pos']) for genome in genomes])
+        self.m = np.sum([len(genome["pos"]) for genome in genomes])
         self.k = len(self.seqs)
 
         # Compute membership(C), distance (D) and gene_to_seq (E) matrices
@@ -19,17 +20,17 @@ class OTUSolver():
         self.gene_to_seq = np.zeros(shape=(self.m, self.k))
         i = 0
         for g, genome in enumerate(genomes):
-            j = i + len(genome['pos'])
+            j = i + len(genome["pos"])
 
             # Put indicator, position in correct row (g)
             self.members[g, i:j] = 1
-            self.dists[g, i:j] = genome['pos']
+            self.dists[g, i:j] = genome["pos"]
 
             # Keep track of sequences
-            for s, seq in enumerate(genome['seqs']):
-                self.gene_to_seq[i+s, seq] = 1
+            for s, seq in enumerate(genome["seqs"]):
+                self.gene_to_seq[i + s, seq] = 1
             i = j
-        
+
         # Compute coverages, etc
         if abundances is not None and ptrs is not None:
             self.set_coverages(abundances=abundances, ptrs=ptrs)
@@ -40,7 +41,7 @@ class OTUSolver():
                 self.set_coverages(coverages=coverages)
             else:
                 self.coverages = None
-    
+
     def _g(self, abundances, ptrs):
         """
         Compute the unconvolved log-coverage vector
@@ -58,11 +59,11 @@ class OTUSolver():
         C = self.members
         D = self.dists
         return a @ C + 1 - b @ D
-        
+
     def compute_coverages(self, abundances, ptrs):
         """
         Compute the convolved coverage vector (corresponds to observed coverages)
-        
+
         f = exp(g)E = exp(aC + 1 - bD)E
 
         a: log-abundances
@@ -75,9 +76,9 @@ class OTUSolver():
         g = self._g(abundances, ptrs)
         E = self.gene_to_seq
         return np.exp(g) @ E
-    
+
     def set_coverages(self, abundances=None, ptrs=None, coverages=None):
-        """ Set log-abundances and log-PTRs and/or true coverages for a system """
+        """Set log-abundances and log-PTRs and/or true coverages for a system"""
 
         if abundances is not None and ptrs is not None:
             self.abundances = np.array(abundances)
@@ -85,16 +86,16 @@ class OTUSolver():
             self.coverages = self.compute_coverages(abundances, ptrs)
         else:
             self.coverages = coverages
-    
+
     def loss(self, abundances=None, ptrs=None):
-        """ Compute the MSE between empirical and predicted coverages """
+        """Compute the MSE between empirical and predicted coverages"""
 
         # Use a_hat, b_hat
         if abundances is None:
             abundances = self.a_hat
         if ptrs is None:
             ptrs = self.b_hat
-        
+
         # Compute loss if coverages are known
         if self.coverages is not None:
             f_hat = self.compute_coverages(abundances, ptrs)
@@ -130,7 +131,7 @@ class OTUSolver():
         E = self.gene_to_seq
         f_hat = self.compute_coverages(abundances, ptrs)
         g = self._g(abundances, ptrs)
-        
+
         # Backprop computations
         dL_df = f_hat - self.coverages
         dL_dg = (2 / self.k) * np.exp(g) * (E @ dL_df)
@@ -138,32 +139,39 @@ class OTUSolver():
         dL_db = -D @ dL_dg
 
         return dL_da, dL_db
-    
+
     def guess(self, abundances=None, ptrs=None):
-        """ Set an initial set of params """
+        """Set an initial set of params"""
 
         # A reasonable automatic guess
         if abundances is None:
             abundances = np.random.rand(self.n)
         if ptrs is None:
             ptrs = np.log(1 + np.random.rand(self.n))
-        
+
         # Save changes as system attributes
         self.a_hat = abundances
         self.b_hat = ptrs
-    
-    def training_step(self, lr=.0001):
-        """ One training step """
+
+    def training_step(self, lr=0.0001):
+        """One training step"""
 
         loss = self.loss(self.a_hat, self.b_hat)
         da, db = self.gradients(self.a_hat, self.b_hat)
-        self.a_hat -= lr*da
-        self.b_hat -= lr*db
+        self.a_hat -= lr * da
+        self.b_hat -= lr * db
 
         return loss
 
-    def train(self, lr=.0001, tolerance=.001, frequency=1000, max_steps=np.inf, verbose=False):
-        """ Learn log-abundances, log-PTRs until convergence in loss """
+    def train(
+        self,
+        lr=0.0001,
+        tolerance=0.001,
+        frequency=1000,
+        max_steps=np.inf,
+        verbose=False,
+    ):
+        """Learn log-abundances, log-PTRs until convergence in loss"""
 
         self.guess()
         i = 0
@@ -177,7 +185,7 @@ class OTUSolver():
                 last_loss = loss
                 if verbose:
                     print(f"{i}\t{last_loss}\t{loss_diff}")
-        
+
         # Save some information about this round of training
         self.best_loss = last_loss
         return i

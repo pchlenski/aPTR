@@ -3,16 +3,14 @@
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from .matrix_solver import OTUSolver
-from .database import RnaDB
-
+from matrix_solver import OTUSolver
+from database import RnaDB
 
 
 def load_table(path):
-    """ Load a VSEARCH output table """
+    """Load a VSEARCH output table"""
 
     return pd.read_table(path, index_col=0)
-
 
 
 # def find_genomes_by_md5(md5, db):
@@ -21,9 +19,8 @@ def load_table(path):
 #     return db[db["md5"] == md5]["genome"].unique()
 
 
-
 def find_candidates(sample, db):
-    """ For a sample, find sequences that are worth looking at"""
+    """For a sample, find sequences that are worth looking at"""
 
     # Pass 1: find all genomes with nonzero read counts
     md5s = sample[sample > 0].index
@@ -54,21 +51,21 @@ def find_candidates(sample, db):
     return sample.loc[filtered_index], candidates
 
 
-
 def solve_sequences(genome, sample):
-    """ Given some genomes IDs and a sample of coverages, estimate abundances/PTRs """
+    """Given some genomes IDs and a sample of coverages, estimate abundances/PTRs"""
 
-    genomes = {} # TODO: make genomes from db
-    coverages = [] # TODO: make coverages from candidate
+    genomes = {}  # TODO: make genomes from db
+    coverages = []  # TODO: make coverages from candidate
     solver = OTUSolver(genomes=genomes, coverages=coverages)
     solver.train()
 
     return solver.ptrs, solver.abundances
 
 
-
-def solve_all(path, db_path=None, left_primer=None, right_primer=None, true_values=None):
-    """ Calls all the other functions to solve a TSV of coverages with a database """
+def solve_all(
+    path, db_path=None, left_primer=None, right_primer=None, true_values=None
+):
+    """Calls all the other functions to solve a TSV of coverages with a database"""
 
     # db = pd.read_pickle(db_path)
     if db_path is not None:
@@ -85,11 +82,18 @@ def solve_all(path, db_path=None, left_primer=None, right_primer=None, true_valu
             print(column)
             print(candidates)
             genomes, all_seqs = db.generate_genome_objects(candidates)
-            sample = sample.loc[all_seqs] # Reorder according to generate_genome_objects
+            sample = sample.loc[
+                all_seqs
+            ]  # Reorder according to generate_genome_objects
             solver = OTUSolver(genomes, coverages=coverages.values)
-            solver.train(lr=.001, tolerance=.0001, verbose=True)
+            solver.train(lr=0.001, tolerance=0.0001, verbose=True)
             print("Abundances", np.exp(solver.a_hat), "PTRs", np.exp(solver.b_hat))
-            print("True", solver.coverages, "Predicted", solver.compute_coverages(solver.a_hat, solver.b_hat))
+            print(
+                "True",
+                solver.coverages,
+                "Predicted",
+                solver.compute_coverages(solver.a_hat, solver.b_hat),
+            )
             print()
         # solutions = solve_sequences(candidates)
         # # TODO: append outputs

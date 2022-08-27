@@ -18,10 +18,10 @@ elif len(sys.argv) == 4:
     _, path, adapter1, adapter2 = sys.argv
 
     db = filter_db(
-        path_to_dnaA = "./data/allDnaA.tsv",
-        path_to_16s = "./data/allSSU.tsv",
-        left_primer = adapter1,
-        right_primer = adapter2
+        path_to_dnaA="./data/allDnaA.tsv",
+        path_to_16s="./data/allSSU.tsv",
+        left_primer=adapter1,
+        right_primer=adapter2,
     )
     db_path = f"{path}/aPTR_out/db.fasta"
     try:
