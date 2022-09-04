@@ -2,12 +2,12 @@
 
 import pandas as pd
 import numpy as np
-from src.new_filter import _filter_db
+from new_filter import _filter_db
 
 
 class RnaDB:
     def __init__(self, load=False, left_primer=None, right_primer=None):
-        """ Initialize a DB instance with an appropriately-trimmed DB"""
+        """Initialize a DB instance with an appropriately-trimmed DB"""
         if load:
             self.db = pd.read_pickle(load)
         else:
@@ -18,11 +18,11 @@ class RnaDB:
         self.md5s = self.db["md5"].unique()
 
     def find_genomes_by_md5(self, md5):
-        """ Given an md5-hashed seq, return all genome IDs with that sequence """
+        """Given an md5-hashed seq, return all genome IDs with that sequence"""
         return self.db[self.db["md5"] == md5]["genome"].unique()
 
     def get_oor_dist(self, oor, pos, length):
-        """ Given an OOR coordinate, a position, and a length, return distance """
+        """Given an OOR coordinate, a position, and a length, return distance"""
         oor = float(oor)
         pos = float(pos)
         length = float(length)
@@ -31,7 +31,7 @@ class RnaDB:
         return np.minimum(d1, d2) / length
 
     def generate_genome_objects(self, genome_ids):
-        """ Given a genome ID, return a 'genome' object """
+        """Given a genome ID, return a 'genome' object"""
         out = []
         all_seqs = []
         for genome_id in genome_ids:

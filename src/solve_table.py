@@ -53,13 +53,15 @@ def _find_candidates(sample, db):
     return sample.loc[filtered_index], candidates
 
 
-# def solve_sequences(genome, sample):
-#     """ Given some genomes IDs and a sample of coverages, estimate abundances/PTRs """
+# def _solve_sequences(genome, sample):
+#     """Given some genomes IDs and a sample of coverages, estimate abundances/PTRs"""
 
-#     genomes = {} # TODO: make genomes from db
-#     coverages = [] # TODO: make coverages from candidate
+#     genomes = {}  # TODO: make genomes from db
+#     coverages = []  # TODO: make coverages from candidate
 #     solver = OTUSolver(genomes=genomes, coverages=coverages)
 #     solver.train()
+
+#     return solver.ptrs, solver.abundances
 
 #     return solver.ptrs, solver.abundances
 

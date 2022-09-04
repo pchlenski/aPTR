@@ -92,7 +92,7 @@ class OTUSolver:
         return np.exp(g) @ E
 
     def set_coverages(self, abundances=None, ptrs=None, coverages=None):
-        """ Set log-abundances and log-PTRs and/or true coverages for a system """
+        """Set log-abundances and log-PTRs and/or true coverages for a system"""
 
         if abundances is not None and ptrs is not None:
             self.abundances = np.array(abundances)
@@ -102,7 +102,7 @@ class OTUSolver:
             self.coverages = coverages
 
     def loss(self, abundances=None, ptrs=None):
-        """ Compute the MSE between empirical and predicted coverages """
+        """Compute the MSE between empirical and predicted coverages"""
 
         # Use a_hat, b_hat
         if abundances is None:
@@ -155,7 +155,7 @@ class OTUSolver:
         return dL_da, dL_db
 
     def guess(self, abundances=None, ptrs=None):
-        """ Set an initial set of params """
+        """Set an initial set of params"""
 
         # A reasonable automatic guess
         if abundances is None:

@@ -176,7 +176,7 @@ def _process_sample(
     return True
 
 
-def process_samples(
+def _process_samples(
     path: str,
     adapter1: str,
     adapter2: str,
@@ -189,7 +189,6 @@ def process_samples(
     # Step 0: relevant preconditions
     files = os.listdir(path)
     out_dir = f"{path}/aPTR_out"
-
     for f in [
         out_dir,
         f"{out_dir}/trimmed",
@@ -239,7 +238,6 @@ def process_samples(
                 if prefix.endswith("_1") or prefix.endswith("_2"):
                     prefix = prefix.rstrip("_1").rstrip("_2")
                     paired.add((prefix, suffix))  # Note double parens
-
                 else:
                     unpaired.add((prefix, suffix))
 
