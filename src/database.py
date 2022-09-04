@@ -2,15 +2,16 @@
 
 import pandas as pd
 import numpy as np
-from src.new_filter import filter_db
+from src.new_filter import _filter_db
 
-class RnaDB():
+
+class RnaDB:
     def __init__(self, load=False, left_primer=None, right_primer=None):
         """ Initialize a DB instance with an appropriately-trimmed DB"""
         if load:
             self.db = pd.read_pickle(load)
         else:
-            self.db = filter_db(left_primer=left_primer, right_primer=right_primer)
+            self.db = _filter_db(left_primer=left_primer, right_primer=right_primer)
             self.left_primer = left_primer
             self.right_primer = right_primer
         self.genomes = self.db["genome"].unique()
@@ -45,7 +46,9 @@ class RnaDB():
 
             # Get distances
             rna_positions = np.array(genome_data["16s_position"], dtype=float)
-            dist = np.array([self.get_oor_dist(oor, pos, size) for pos in rna_positions])
+            dist = np.array(
+                [self.get_oor_dist(oor, pos, size) for pos in rna_positions]
+            )
 
             # Maintain consistent indexing scheme for sequence MD5s
             seqs = []
@@ -55,7 +58,7 @@ class RnaDB():
                 seqs.append(all_seqs.index(seq))
 
             # Output dict
-            out.append({"id" : genome_id, "pos" : dist, "seqs" : seqs})
+            out.append({"id": genome_id, "pos": dist, "seqs": seqs})
 
         return out, all_seqs
 

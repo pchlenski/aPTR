@@ -4,13 +4,4 @@ outputs/
 output/
 out/
 tmp/
-data/v1v9/
-data/seqs/
-data/seqs_complete/
-data/hmp2/
-data/infant/
-data/full_length_seqs.fa
-archived/data/
-data/all2.tsv
-data/db.pkl
-
+data/
