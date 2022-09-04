@@ -3,18 +3,18 @@
 import os
 
 # Path stuff
-CUTADAPT = "cutadapt"
-VSEARCH = "vsearch"
+_CUTADAPT = "cutadapt"
+_VSEARCH = "vsearch"
 
 # System variables
-N_THREADS = 4
-FASTQ_MAX_EE = 1.0
-FASTQ_MIN_LEN = 225
-FASTQ_MAX_NS = 0
-FASTQ_QMAX = 93
+_N_THREADS = 4
+_FASTQ_MAX_EE = 1.0
+_FASTQ_MIN_LEN = 225
+_FASTQ_MAX_NS = 0
+_FASTQ_QMAX = 93
 
 
-def exec(cmd, verbose, logfile=None, errfile=None):
+def _exec(cmd, verbose, logfile=None, errfile=None):
     """Utility function to log and execute system calls the way I like it"""
     if isinstance(cmd, list):
         cmd = [str(x) for x in cmd]
@@ -31,7 +31,7 @@ def exec(cmd, verbose, logfile=None, errfile=None):
         raise Exception(f"out status is {out}")
 
 
-def process_sample(
+def _process_sample(
     prefix: str,
     suffix: str,
     adapter1: str,
@@ -65,19 +65,19 @@ def process_sample(
 
         # Cutadapt part
         if use_cutadapt:
-            exec(
-                f"{CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {N_THREADS} {path1} {path2} > {cutadapt_log}",
+            _exec(
+                f"{_CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {_N_THREADS} {path1} {path2} > {cutadapt_log}",
                 verbose,
                 logfile,
                 errfile,
             )
         else:
-            exec(f"cp {path1} {out1}", verbose)
-            exec(f"cp {path2} {out2}", verbose)
+            _exec(f"cp {path1} {out1}", verbose)
+            _exec(f"cp {path2} {out2}", verbose)
 
         # Merge pairs
-        exec(
-            f"{VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {N_THREADS} --fastqout {out3} --fastq_eeout",
+        _exec(
+            f"{_VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {_N_THREADS} --fastqout {out3} --fastq_eeout",
             verbose,
             logfile,
             errfile,
@@ -90,49 +90,49 @@ def process_sample(
 
         # Cutadapt
         if use_cutadapt:
-            exec(
-                f"{CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {N_THREADS} {path1} > {cutadapt_log}",
+            _exec(
+                f"{_CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {_N_THREADS} {path1} > {cutadapt_log}",
                 verbose,
                 logfile,
                 errfile,
             )
         else:
-            exec(f"cp {path1} {out1}", verbose, logfile, errfile)
+            _exec(f"cp {path1} {out1}", verbose, logfile, errfile)
 
         # Just copy rather than merging
-        exec(f"cp {out1} {out3}", verbose, logfile, errfile)
+        _exec(f"cp {out1} {out3}", verbose, logfile, errfile)
 
     # Quality stuff
     try:
-        exec(
+        _exec(
             [
-                VSEARCH,
+                _VSEARCH,
                 "--fastq_eestats2",
                 out3,
                 "--output",
                 out4,
                 "--fastq_qmax",
-                FASTQ_QMAX,
+                _FASTQ_QMAX,
             ],
             verbose,
             logfile,
             errfile,
         )
-        exec(
+        _exec(
             [
-                VSEARCH,
+                _VSEARCH,
                 "--fastq_filter",
                 out3,
                 "--fastq_maxee",
-                FASTQ_MAX_EE,
+                _FASTQ_MAX_EE,
                 "--fastq_minlen",
-                FASTQ_MIN_LEN,
+                _FASTQ_MIN_LEN,
                 "--fastq_maxns",
-                FASTQ_MAX_NS,
+                _FASTQ_MAX_NS,
                 "--fastaout",
                 out5,
                 "--fastq_qmax",
-                FASTQ_QMAX,
+                _FASTQ_QMAX,
                 "--fasta_width",
                 "0",
             ],
@@ -140,9 +140,9 @@ def process_sample(
             logfile,
             errfile,
         )
-        exec(
+        _exec(
             [
-                VSEARCH,
+                _VSEARCH,
                 "--derep_fulllength",
                 out5,
                 "--strand",
@@ -191,7 +191,7 @@ def process_samples(
             print(f"Skipping making {f}, already exists")
     logfile = f"{out_dir}/log.txt"
     errfile = f"{out_dir}/err.txt"
-    exec(
+    _exec(
         f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {out_dir}/adapters.txt",
         verbose,
         logfile,
@@ -220,7 +220,7 @@ def process_samples(
 
     # Step 2: preprocess reads, merge, dereplicate
     for prefix, suffix in paired:
-        process_sample(
+        _process_sample(
             prefix,
             suffix,
             adapter1,
@@ -233,7 +233,7 @@ def process_samples(
             errfile=errfile,
         )
     for prefix, suffix in unpaired:
-        process_sample(
+        _process_sample(
             prefix,
             suffix,
             adapter1,
@@ -247,19 +247,19 @@ def process_samples(
         )
 
     # Step 3: OTU table
-    exec(
+    _exec(
         f"cat {out_dir}/derep/* > {out_dir}/all.fasta",
         verbose,
         logfile=logfile,
         errfile=errfile,
     )
-    exec(
+    _exec(
         [
-            VSEARCH,
+            _VSEARCH,
             "--usearch_global",
             f"{out_dir}/all.fasta",
             "--threads",
-            N_THREADS,
+            _N_THREADS,
             "--id 1.0",
             "--db",
             db_path,

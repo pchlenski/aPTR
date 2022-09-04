@@ -7,7 +7,7 @@ from matrix_solver import OTUSolver
 from database import RnaDB
 
 
-def load_table(path):
+def _load_table(path):
     """Load a VSEARCH output table"""
 
     return pd.read_table(path, index_col=0)
@@ -19,7 +19,7 @@ def load_table(path):
 #     return db[db["md5"] == md5]["genome"].unique()
 
 
-def find_candidates(sample, db):
+def _find_candidates(sample, db):
     """For a sample, find sequences that are worth looking at"""
 
     # Pass 1: find all genomes with nonzero read counts
@@ -51,7 +51,7 @@ def find_candidates(sample, db):
     return sample.loc[filtered_index], candidates
 
 
-def solve_sequences(genome, sample):
+def _solve_sequences(genome, sample):
     """Given some genomes IDs and a sample of coverages, estimate abundances/PTRs"""
 
     genomes = {}  # TODO: make genomes from db
@@ -72,12 +72,12 @@ def solve_all(
         db = RnaDB(load=db_path)
     else:
         db = RnaDB(left_primer=left_primer, right_primer=right_primer)
-    table = load_table(path)
+    table = _load_table(path)
 
     out = pd.DataFrame(columns=["sample", "genome", "ptr"])
     for column in table.columns:
         sample = table[column]
-        coverages, candidates = find_candidates(sample, db)
+        coverages, candidates = _find_candidates(sample, db)
         if len(candidates) > 0:
             print(column)
             print(candidates)

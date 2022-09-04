@@ -7,7 +7,7 @@ import os
 import pickle
 from src.process_samples import process_samples
 from src.matrix_solver import OTUSolver
-from src.new_filter import filter_db, generate_vsearch_db
+from src.new_filter import _filter_db, generate_vsearch_db
 
 # Need to have at least path and adapter sequences
 if len(sys.argv) < 4:
@@ -17,7 +17,7 @@ if len(sys.argv) < 4:
 elif len(sys.argv) == 4:
     _, path, adapter1, adapter2 = sys.argv
 
-    db = filter_db(
+    db = _filter_db(
         path_to_dnaA="./data/allDnaA.tsv",
         path_to_16s="./data/allSSU.tsv",
         left_primer=adapter1,

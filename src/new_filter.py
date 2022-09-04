@@ -7,7 +7,7 @@ from hashlib import md5
 DD = "../data/"
 
 
-primers = {
+_primers = {
     "8F": "AGAGTTTGATCCTGGCTCAG",
     "27F": "AGAGTTTGATCMTGGCTCAG",
     "CYA106F": "CGGACGGGTGAGTAACGCGTGA",
@@ -38,7 +38,7 @@ primers = {
 }
 
 
-key = {
+_key = {
     "r": "a|g",
     "y": "c|t",
     "m": "a|c",
@@ -51,35 +51,35 @@ key = {
 }
 
 
-def find_primer(seq, primer):
+def _find_primer(seq, primer):
     # For cleanliness
     if primer is None or primer == "":
         return [seq]
         # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
 
     # Turn primer into regex
-    re_primer = "".join([key[x] for x in primer.lower()])
+    re_primer = "".join([_key[x] for x in primer.lower()])
     pattern = re.compile(re_primer)
     out = pattern.split(seq, maxsplit=1)
     return out
 
 
-def trim_primers(seq, left, right):
+def _trim_primers(seq, left, right):
     # Input stuff
     seq = str(seq).lower()
 
     # Left side
-    trim_left = find_primer(seq, left)
+    trim_left = _find_primer(seq, left)
     seq = trim_left[-1]
 
     # Right side
-    trim_right = find_primer(seq, right)
+    trim_right = _find_primer(seq, right)
     seq = trim_right[0]
 
     return seq
 
 
-def filter_db(
+def _filter_db(
     path_to_dnaA=f"{DD}/allDnaA.tsv",
     path_to_16s=f"{DD}/allSSU.tsv",
     left_primer=None,
@@ -111,7 +111,8 @@ def filter_db(
 
     # Add 16S substring
     table.loc[:, "filtered_seq"] = [
-        trim_primers(x, left_primer, right_primer) for x in table["feature.na_sequence"]
+        _trim_primers(x, left_primer, right_primer)
+        for x in table["feature.na_sequence"]
     ]
 
     # Iteratively filter on sequence
