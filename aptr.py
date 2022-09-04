@@ -38,8 +38,4 @@ else:
     _, path, adapter1, adapter2, db_path = sys.argv
 
 # All the action takes place here
-<<<<<<< HEAD
 _process_samples(path, adapter1, adapter2, db_path=db_path)
-=======
-process_samples(path, adapter1, adapter2, db_path=db_path)
->>>>>>> b0effc4b6b34958ec640ee3a825998074175d6f9
