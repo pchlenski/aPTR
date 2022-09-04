@@ -79,13 +79,13 @@ def _trim_primers(seq, left, right):
     return seq
 
 
-def _filter_db(
+def filter_db(
     path_to_dnaA=f"{_DD}/allDnaA.tsv",
     path_to_16s=f"{_DD}/allSSU.tsv",
     left_primer=None,
     right_primer=None,
 ) -> pd.DataFrame:
-    """ Filter DB by adapters, return candidate sequences """
+    """Filter DB by adapters, return candidate sequences"""
 
     # Get tables
     dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
@@ -157,10 +157,6 @@ def _filter_db(
         "size",
         "16s_sequence",
     ]
-
-    # Add md5s for legibility/printing
-    seqs = [str(seq).lower().encode("utf-8") for seq in table["16s_sequence"]]
-    table.loc[:, "md5"] = [md5(seq).hexdigest() for seq in seqs]
 
     return table
 
