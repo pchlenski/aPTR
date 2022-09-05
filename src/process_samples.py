@@ -1,6 +1,7 @@
 """ Scripts for running VSEARCH and CUTADAPT on FASTRQ reads """
 
 import os
+import sys
 
 # Path stuff
 _CUTADAPT = "cutadapt"
@@ -14,31 +15,61 @@ _FASTQ_MAX_NS = 0
 _FASTQ_QMAX = 93
 
 
-def _exec(*args, verbose=False, cmdfile=None, logfile=None, errfile=None, **kwargs):
-    """Utility function to log and execute system calls the way I like it"""
-    # if isinstance(cmd, list):
-    #     cmd = [str(x) for x in cmd]
-    #     cmd = " ".join(cmd)
+def _exec(
+    *args,
+    verbose: bool = False,
+    cmdfile: str = sys.stdout,
+    logfile: str = None,
+    errfile: str = None,
+    **kwargs,
+) -> bool:
+    """
+    Utility function to log and execute system calls
+
+    Args:
+    -----
+    args: list
+        List of arguments to pass to os.system(). Get concatenated with spaces.
+    verbose: bool
+        Whether to print the command to stdout or cmdfile.
+    cmdfile: str
+        Path to file where commands are logged.
+    logfile: str
+        Path to file where stdout is logged.
+    errfile: str
+        Path to file where stderr is logged.
+    kwargs: dict
+        Ignored. This is used to absorb extra arguments passed to _exec() from other functions.
+
+    Returns:
+    --------
+    bool
+        True if the command executed successfully, False otherwise.
+
+    Raises:
+    -------
+    TODO
+    """
 
     # Coerce to string
     cmd = " ".join([str(x) for x in args])
 
-    if verbose and cmdfile is not None:
+    if verbose:
         with open(cmdfile, "a") as f:
             print(cmd, file=f)
-    elif verbose:
-        print(cmd)
 
-    if logfile is not None:
+    if logfile is not None and ">" not in cmd:
         cmd = f"{cmd} >> {logfile}"
 
-    if errfile is not None:
+    if errfile is not None and "2>" not in cmd:
         cmd = f"{cmd} 2>> {errfile}"
 
     out = os.system(cmd)
     if out != 0:
         print(f"Failed to execute command:\t{cmd}")
         raise Exception(f"out status is {out}")
+
+    return True
 
 
 def _process_sample(
@@ -51,14 +82,44 @@ def _process_sample(
     paired: bool,
     **exec_args,
 ) -> bool:
-    """For a single FASTQ/pair of FASTQ files, cut adapters, filter, and dereplicate"""
+    """
+    For a single FASTQ/pair of FASTQ files, cut adapters, filter, and dereplicate reads.
+
+    Args:
+    -----
+    prefix: str
+        Prefix of the FASTQ file(s). This is likely to be an SRA run accession.
+    suffix: str
+        Suffix of the FASTQ file(s). This is likely to be ".fastq.gz" or ".fq.gz".
+    adapter1: str
+        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT -A/-a option.
+    adapter2: str
+        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT -G/-g option.
+    in_dir: str
+        Path to directory where the FASTQ file(s) are located.
+    out_dir: str
+        Path to directory where the output files will be written.
+    paired: bool
+        Whether the reads are paired-end or not.
+    exec_args: dict
+        Arguments to pass to _exec().
+
+    Returns:
+    --------
+    bool
+        True if the command executed successfully, False otherwise.
+
+    Raises:
+    -------
+    TODO
+    """
 
     # Shared values
-    cutadapt_log = f"{out_dir}/stats/{prefix}.cutadapt.log"  # Cut-adapt log
-    out3 = f"{out_dir}/merged/{prefix}{suffix}"  # Merged reads
-    out4 = f"{out_dir}/stats/{prefix}.stats"  # EE stats
-    out5 = f"{out_dir}/filtered/{prefix}.filtered.fasta"  # Filtered reads
-    out6 = f"{out_dir}/derep/{prefix}.derep.fasta"
+    cutadapt_log = f"{out_dir}/stats/{prefix}.cutadapt.log"
+    merged_reads_path = f"{out_dir}/merged/{prefix}{suffix}"
+    ee_stats_path = f"{out_dir}/stats/{prefix}.stats"
+    filtered_reads_path = f"{out_dir}/filtered/{prefix}.filtered.fasta"
+    derep_path = f"{out_dir}/derep/{prefix}.derep.fasta"
 
     use_cutadapt = (adapter1 is not None and adapter2 is not None) and (
         adapter1 != "" and adapter2 != ""
@@ -73,17 +134,23 @@ def _process_sample(
 
         # Cutadapt part
         if use_cutadapt:
+            cutadapt_args = exec_args.copy()
             _exec(
-                f"{_CUTADAPT} -A {adapter1} -G {adapter2} -o {out1} -p {out2} -j {_N_THREADS} {path1} {path2} > {cutadapt_log}",
-                **exec_args,
-            )
+                _CUTADAPT,
+                f"-A {adapter1} -a {adapter1}",
+                f"-G {adapter2} -g {adapter2}",
+                f"-o {out1} -p {out2}",
+                f"-j {_N_THREADS}",
+                f"{path1} {path2}",
+                f"> {cutadapt_log}",
+            )  # Do not log with _exec() because we want a separate cutadapt log
         else:
             _exec(f"cp {path1} {out1}", **exec_args)
             _exec(f"cp {path2} {out2}", **exec_args)
 
         # Merge pairs
         _exec(
-            f"{_VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {_N_THREADS} --fastqout {out3} --fastq_eeout",
+            f"{_VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {_N_THREADS} --fastqout {merged_reads_path} --fastq_eeout",
             **exec_args,
         )
 
@@ -102,51 +169,36 @@ def _process_sample(
             _exec(f"cp {path1} {out1}", **exec_args)
 
         # Just copy rather than merging
-        _exec(f"cp {out1} {out3}", **exec_args)
+        _exec(f"cp {out1} {merged_reads_path}", **exec_args)
 
     # Quality stuff
     try:
         _exec(
             _VSEARCH,
-            "--fastq_eestats2",
-            out3,
-            "--output",
-            out4,
-            "--fastq_qmax",
-            _FASTQ_QMAX,
+            f"--fastq_eestats2 {merged_reads_path}",
+            f"--output {ee_stats_path}",
+            f"--fastq_qmax {_FASTQ_QMAX}",
             **exec_args,
         )
         _exec(
             _VSEARCH,
-            "--fastq_filter",
-            out3,
-            "--fastq_maxee",
-            _FASTQ_MAX_EE,
-            "--fastq_minlen",
-            _FASTQ_MIN_LEN,
-            "--fastq_maxns",
-            _FASTQ_MAX_NS,
-            "--fastaout",
-            out5,
-            "--fastq_qmax",
-            _FASTQ_QMAX,
-            "--fasta_width",
-            0,
+            f"--fastq_filter {merged_reads_path}",
+            f"--fastq_maxee {_FASTQ_MAX_EE}",
+            f"--fastq_minlen {_FASTQ_MIN_LEN}",
+            f"--fastq_maxns {_FASTQ_MAX_NS}",
+            f"--fastaout {filtered_reads_path}",
+            f"--fastq_qmax {_FASTQ_QMAX}",
+            f"--fasta_width 0",
             **exec_args,
         )
         _exec(
             _VSEARCH,
-            "--derep_fulllength",
-            out5,
-            "--strand",
-            "plus",
-            "--sizeout",
-            "--relabel",
-            f"{prefix}.",
-            "--output",
-            out6,
-            "--fasta_width",
-            0,
+            f"--derep_fulllength {filtered_reads_path}",
+            f"--strand plus",
+            f"--sizeout",
+            f"--relabel {prefix}.",
+            f"--output {derep_path}",
+            f"--fasta_width 0",
             **exec_args,
         )
     except Exception:
@@ -155,7 +207,7 @@ def _process_sample(
     return True
 
 
-def process_samples(
+def preprocess_samples(
     path: str,
     adapter1: str,
     adapter2: str,
@@ -164,9 +216,37 @@ def process_samples(
     verbose: bool = True,
     log: bool = True,
 ) -> bool:
-    """Process all samples in a directory"""
+    """
+    Process all samples in a directory. Generates an OTU abundance table.
 
-    # Step 0: relevant preconditions
+    Args:
+    -----
+    path: str
+        Path to directory containing FASTQ files.
+    adapter1: str
+        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT -A/-a option.
+    adapter2: str
+        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT -G/-g option.
+    db_path: str
+        Path to an RnaDB object.
+    outdir: str
+        Path to directory where the output files will be written.
+    verbose: bool
+        Whether to print the output of the commands to the console.
+    log: bool
+        Whether to log the output of the commands to a file.
+
+    Returns:
+    --------
+    bool
+        True if the command executed successfully, False otherwise.
+
+    Raises:
+    -------
+    TODO
+    """
+
+    # Ensure all directories exist
     files = os.listdir(path)
     for dir in [
         f"{outdir}/trimmed",
@@ -196,8 +276,9 @@ def process_samples(
         exec_args.update({"logfile": None, "errfile": None, "cmdfile": None})
 
     _exec(
-        f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt"
-    )  # Do not log this
+        f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt",
+        **exec_args,
+    )
 
     # Step 1: categorize files
     endings = [".fq.gz", ".fastq.gz", ".fq", ".fastq"]

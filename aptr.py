@@ -5,8 +5,9 @@
 import sys
 import os
 import uuid
-from src.process_samples import process_samples
+from src.process_samples import preprocess_samples
 from src.new_filter import filter_db, generate_vsearch_db
+from src.solve_table import solve_all
 
 # Need to have at least path and adapter sequences
 if len(sys.argv) < 4:
@@ -37,7 +38,10 @@ elif len(sys.argv) == 4:
 else:
     _, path, adapter1, adapter2, db_path = sys.argv
 
-# All the action takes place here
-process_samples(
+# All the preprocessing takes place here
+preprocess_samples(
     path=path, adapter1=adapter1, adapter2=adapter2, db_path=db_path, outdir=outdir
 )
+
+# Infer PTRs
+inferred_ptrs = solve_all()

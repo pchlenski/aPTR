@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from new_filter import _filter_db
+from new_filter import filter_db
 
 
 class RnaDB:
@@ -11,7 +11,7 @@ class RnaDB:
         if load:
             self.db = pd.read_pickle(load)
         else:
-            self.db = _filter_db(left_primer=left_primer, right_primer=right_primer)
+            self.db = filter_db(left_primer=left_primer, right_primer=right_primer)
             self.left_primer = left_primer
             self.right_primer = right_primer
         self.genomes = self.db["genome"].unique()
