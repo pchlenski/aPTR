@@ -158,18 +158,20 @@ def filter_db(
         "16s_sequence",
     ]
 
+    table.loc[:, "md5"] = [
+        md5(x.encode("utf-8")).hexdigest() for x in table["16s_sequence"]
+    ]
+
     return table
 
 
 def generate_vsearch_db(db, output_file=f"{_DD}vsearch_db.fa", method="seq"):
     with open(output_file, "w+") as f:
         if method == "id":
-            for i, (id, seq) in db[["feature", "16s_sequence"]].iterrows():
+            for _, (id, seq) in db[["feature", "16s_sequence"]].iterrows():
                 print(f">{id}\n{seq}", file=f)
         elif method == "seq":
-            for seq in db["16s_sequence"].unique():
-                seq = str(seq).lower()
-                md5_hash = md5(
-                    seq.encode("utf-8")
-                ).hexdigest()  # regenerating md5 is easier
-                print(f">{md5_hash}\n{seq}", file=f)
+            for _, (seq, md5) in (
+                db[["16s_sequence", "md5"]].drop_duplicates().iterrows()
+            ):
+                print(f">{md5}\n{str(seq).lower()}", file=f)

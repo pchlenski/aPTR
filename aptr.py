@@ -5,7 +5,7 @@
 import sys
 import os
 import uuid
-from src.process_samples import preprocess_samples
+from src.preprocess_samples import preprocess_samples
 from src.new_filter import filter_db, generate_vsearch_db
 from src.solve_table import solve_all
 
@@ -44,4 +44,17 @@ preprocess_samples(
 )
 
 # Infer PTRs
-inferred_ptrs = solve_all()
+inferred_ptrs, inferred_abundances = solve_all(
+    otu_table_path=f"{outdir}/otu_table.tsv",
+    db_path=f"{outdir}/db.pkl",
+    left_adapter=adapter1,
+    right_adapter=adapter2,
+    true_values=None,  # TODO: find some true values to try on, e.g. from simulation or coPTR
+)
+
+inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
+inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
+
+# Cleanup intermediate files
+for subdir in ["trimmed", "merged", "stats", "filtered", "derep"]:
+    os.system(f"rm -r {outdir}/{subdir}")

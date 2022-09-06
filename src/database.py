@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from new_filter import filter_db
+from .new_filter import filter_db
 
 
 class RnaDB:

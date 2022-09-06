@@ -4,8 +4,8 @@ from collections import defaultdict
 
 import pandas as pd
 import numpy as np
-from matrix_solver import OTUSolver
-from database import RnaDB
+from .matrix_solver import OTUSolver
+from .database import RnaDB
 
 
 def _find_candidates(sample: pd.Series, db: RnaDB) -> (pd.DataFrame, list):

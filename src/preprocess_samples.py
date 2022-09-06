@@ -222,7 +222,7 @@ def preprocess_samples(
     Args:
     -----
     path: str
-        Path to directory containing FASTQ files.
+        Path to parent of "reads" directory containing FASTQ files.
     adapter1: str
         Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT -A/-a option.
     adapter2: str
@@ -247,7 +247,8 @@ def preprocess_samples(
     """
 
     # Ensure all directories exist
-    files = os.listdir(path)
+    reads_dir = f"{path}/reads"
+    files = os.listdir(reads_dir)
     for dir in [
         f"{outdir}/trimmed",
         f"{outdir}/merged",
@@ -309,7 +310,7 @@ def preprocess_samples(
                 suffix=suffix,
                 adapter1=adapter1,
                 adapter2=adapter2,
-                in_dir=path,
+                in_dir=reads_dir,
                 out_dir=outdir,
                 paired=paired_bool,
                 **exec_args,
@@ -323,7 +324,7 @@ def preprocess_samples(
         f"--threads {_N_THREADS}",
         f"--id 1.0",
         f"--db {db_path}",
-        f"--otutabout {outdir}/all.tsv",
+        f"--otutabout {outdir}/otu_table.tsv",
         **exec_args,
     )
 
