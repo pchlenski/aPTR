@@ -3,7 +3,7 @@
 import os
 import gzip
 from collections import Counter
-from typing import Tuple
+from typing import Tuple, List, Dict
 import pandas as pd
 import numpy as np
 from Bio import SeqIO
@@ -17,23 +17,30 @@ def ptr_curve(
     """
     Given an array of x-values and a PTR, produce a plausible PTR curve.
     This function assumes that origin of replication is at x=0.
+
     The function for PTR coverage curve is:
         p(x) = ptr^(-2x + 1) / A
         A = sum(ptr^(-2x + 1)) over x (normalization constant)
+
     Args:
     -----
     size:
-        Integer. How many positions to generate PTR curve for. Should correspond to genome size.
+        Integer. How many positions to generate PTR curve for. Should correspond
+        to genome size.
     ptr:
         Float. Peak-to-trough ratio of coverage curve. Should be at least 1.
     oor:
-        Int. Index at which coverage peak/origin of replication is found. Should be between 0 and size.
+        Int. Index at which coverage peak/origin of replication is found. Should
+        be between 0 and size.
+
     Returns:
     --------
     x_array:
         A numpy array of x-coordinate positions.
     y_array:
-        A numpy array of read probabilities corresponding to each position in x_array.
+        A numpy array of read probabilities corresponding to each position in
+        x_array.
+
     Raises:
     -------
     TODO
@@ -106,12 +113,14 @@ def generate_reads(
 ) -> list:
     """
     Generates synthetic reads from a given sequence.
+
     Args:
     -----
     db:
         Pandas dataframe containing 16S information. SHOULD BE FILTERED!
     sequence:
-        String (or Biopython Seq object) corresponding to the full nucleotide sequence of an organism/contig.
+        String (or Biopython Seq object) corresponding to the full nucleotide
+        sequence of an organism/contig.
     n_reads:
         Integer. How many reads to draw from this sequence.
     read_length:
@@ -122,13 +131,16 @@ def generate_reads(
         Integer. At which position to simulate the coverage peak.
     name:
         String. What name to give this organism in the simulated reads.
+
     Returns:
     --------
-    A list of simulated fastq reads. Each read is a single string with the following format:
+    A list of simulated fastq reads. Each read is a single string with the
+    following format:
         @{name}:{index}:{start}:{end}
         ACTGACTG...
         +
         IIIIIIII...
+
     Raises:
     -------
     TODO
@@ -193,45 +205,56 @@ def generate_reads(
 
 def simulate(
     db: pd.DataFrame,
-    sequences: dict,
+    sequences: Dict[str, List[str]],
     ptrs: np.array = None,
     coverages: np.array = None,
     n_samples: int = 10,
     read_length: int = 300,
     scale: float = 1e5,
     verbose: bool = True,
-) -> Tuple[list, np.array, np.array, list]:
+    shuffle: bool = True,
+) -> Tuple[List[List[str]], np.array, np.array, np.array]:
     """
     Given known PTRs and coverages, generate synthetic reads.
     TODO: Adapt to multiple contigs
+
     Args:
     -----
     db:
         A dataframe containing per-contig 16S sequence and position information
-    sequences:
-        Dict. A dict mapping genome IDs to lists of contig sequences.
-    ptrs:
-        Numpy array. A #{genomes} x #{samples} array of true PTRs.
-    coverages:
-        Numpy array. A #{genomes} x #{samples} array of read counts.
-    n_samples:
-        Float. How many samples to generate.
-    read_length:
-        Integer. How many base pairs to make each read.
-    Scale:
-        Float. Scaling factor for exponential distribution during read sampling.
-    Verbose:
-        Boolean. If true, will report on data generation process.
+    sequences: dict
+        A dict mapping genome IDs to lists of contig sequences.
+    ptrs: np.array
+        A #{genomes} x #{samples} array of true PTRs.
+    coverages: np.array
+        A #{genomes} x #{samples} array of read counts.
+    n_samples: int
+        How many samples to generate.
+    read_length: int
+        How many base pairs to make each read.
+    scale: float
+        Scaling factor for exponential distribution during read sampling.
+    verbose: bool
+        Report on data generation process.
+    shuffle: bool
+        If true, will shuffle the order of genomes in the output. Suppress this
+        to prevent OOM errors when generating large datasets.
+
     Returns:
     --------
     samples:
-        A list of samples. Each sample is a list of strings, each of which is a single read.
+        A list of samples. Each sample is a list of strings, each of which is a
+        single read.
     ptrs:
-        Numpy array. A #{genomes} x #{samples} array of true PTRs. If the 'ptrs' argument is set, returns that.
+        Numpy array. A #{genomes} x #{samples} array of true PTRs. If the 'ptrs'
+        argument is set, returns that.
     coverages:
-        Numpy array. A #{genomes} x #{samples} array of read counts. If the 'coveragees' argument is set, returns that.
+        Numpy array. A #{genomes} x #{samples} array of read counts. If the
+        'coveragees' argument is set, returns that.
     otu_matrix:
-        Numpy array. A #{OTUs} x #{samples} array of read counts, downsampled from all reads.
+        Numpy array. A #{OTUs} x #{samples} array of read counts, downsampled
+        from all reads.
+
     Raises:
     -------
     TODO
@@ -300,7 +323,9 @@ def simulate(
             sample += reads
             otu_matrix.append(rna_reads)
 
-        rng.shuffle(sample)
+        if shuffle:
+            rng.shuffle(sample)
+
         samples.append(sample)
 
     return samples, ptrs, coverages, otu_matrix
@@ -315,6 +340,7 @@ def simulate_from_ids(
 ) -> Tuple[list, np.ndarray, np.ndarray, list]:
     """
     Given a list of IDs, simulate reads.
+
     Args:
     -----
     db:
@@ -327,9 +353,11 @@ def simulate_from_ids(
         Sring. The suffix for fasta files.
     **simulate_args:
         Arguments for the simulate() function
+
     Returns:
     --------
     Same outputs as simulate()
+
     Raises:
     -------
     TODO
@@ -385,6 +413,7 @@ def generate_otu_matrix(
 ) -> pd.DataFrame:
     """
     Given coverages and PTRs, generate an OTU matrix with custom scaled coverage.
+
     Args:
     -----
     db:
@@ -397,9 +426,11 @@ def generate_otu_matrix(
         Float. Multiplier for read counts in coverages matrix.
     verbose:
         Boolean. Prints progress updates if true.
+
     Returns:
     --------
     A #{genomes} x #{samples} dataframe of 16S read counts.
+
     Raises:
     -------
     TODO
@@ -480,12 +511,15 @@ def write_output(
 ) -> None:
     """
     Write a set of reads as a fastq.gz file
+
     Args:
     -----
     TODO
+
     Returns:
     --------
     None (writes to disk)
+
     Raises:
     TODO
     """

@@ -15,7 +15,7 @@ from src.simulation import simulate_from_ids, write_output
 # Edit these variables only
 N_SAMPLES = 10
 N_GENOMES_PER_SAMPLE = 10
-SCALE = 1e7
+SCALE = 1e6
 DD = "./data/"
 OUTDIR = "./experiments/simulated_complete/"
 COMPLETE_ONLY = True  # Must be true for now
@@ -47,12 +47,14 @@ for sample in range(N_SAMPLES):
     sample_genomes = np.random.choice(
         genomes, N_GENOMES_PER_SAMPLE, replace=False
     )
+
     samples, ptrs, coverages, otus = simulate_from_ids(
         db=db,
         ids=sample_genomes,
         fasta_path=f"{DD}seqs",
         n_samples=1,
         scale=SCALE,
+        shuffle=False,  # Suppress shuffling to conserve memory
     )
 
     write_output(samples=samples, path=f"{path}/reads/S_{sample}", prefix="")
