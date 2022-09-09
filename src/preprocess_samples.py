@@ -39,7 +39,7 @@ def _exec(
     errfile: str
         Path to file where stderr is logged.
     kwargs: dict
-        Ignored. This is used to absorb extra arguments passed to _exec() from other functions.
+        Ignored. Absorbs superfluous arguments passed to _exec().
 
     Returns:
     --------
@@ -83,18 +83,20 @@ def _process_sample(
     **exec_args,
 ) -> bool:
     """
-    For a single FASTQ/pair of FASTQ files, cut adapters, filter, and dereplicate reads.
+    For a single (paired) read file: cut adapters, filter, dereplicate reads.
 
     Args:
     -----
     prefix: str
-        Prefix of the FASTQ file(s). This is likely to be an SRA run accession.
+        Prefix of the FASTQ file(s). Probably an SRA run accession.
     suffix: str
-        Suffix of the FASTQ file(s). This is likely to be ".fastq.gz" or ".fq.gz".
+        Suffix of the FASTQ file(s). Probably ".fastq.gz" or ".fq.gz".
     adapter1: str
-        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT -A/-a option.
+        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT
+        -A/-a option.
     adapter2: str
-        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT -G/-g option.
+        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT
+        -G/-g option.
     in_dir: str
         Path to directory where the FASTQ file(s) are located.
     out_dir: str
@@ -150,7 +152,11 @@ def _process_sample(
 
         # Merge pairs
         _exec(
-            f"{_VSEARCH} --fastq_mergepairs {out1} --reverse {out2} --threads {_N_THREADS} --fastqout {merged_reads_path} --fastq_eeout",
+            f"{_VSEARCH} --fastq_mergepairs {out1}",
+            f"--reverse {out2}",
+            f"--threads {_N_THREADS}",
+            f"--fastqout {merged_reads_path}",
+            f"--fastq_eeout",
             **exec_args,
         )
 
@@ -162,7 +168,12 @@ def _process_sample(
         # Cutadapt
         if use_cutadapt:
             _exec(
-                f"{_CUTADAPT} -a {adapter1} -g {adapter2} -o {out1} -j {_N_THREADS} {path1} > {cutadapt_log}",
+                f"{_CUTADAPT}",
+                f"-a {adapter1}",
+                f"-g {adapter2}",
+                f"-o {out1}",
+                f"-j {_N_THREADS}",
+                f"{path1} > {cutadapt_log}",
                 **exec_args,
             )
         else:
@@ -224,9 +235,11 @@ def preprocess_samples(
     path: str
         Path to parent of "reads" directory containing FASTQ files.
     adapter1: str
-        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT -A/-a option.
+        Adapter sequence for the 3' end of the reads. Equivalent to the CUTADAPT
+        -A/-a option.
     adapter2: str
-        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT -G/-g option.
+        Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT
+        -G/-g option.
     db_path: str
         Path to an RnaDB object.
     outdir: str

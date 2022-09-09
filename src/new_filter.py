@@ -4,9 +4,10 @@ import pandas as pd
 import re
 from hashlib import md5
 
+# Data directory (global variable)
 _DD = "../data/"
 
-
+# Shorthand for primers
 _primers = {
     "8F": "AGAGTTTGATCCTGGCTCAG",
     "27F": "AGAGTTTGATCMTGGCTCAG",
@@ -35,15 +36,25 @@ _primers = {
     "1492R (s)": "ACCTTGTTACGACTT",
     "926R": "CCGYCAATTYMTTTRAGTTT",  # right for SRS8281217
     "515FB": "GTGYCAGCMGCCGCGGTAA",  # left for SRS8281217
+    "Illumina1": "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGCCTACGGGNGGCWGCAG",  # left for Italian study
+    "Illumina2": "GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGGACTACHVGGGTATCTAATCC",  # right for Italian study
 }
 
-
+# IUPAC codes for nucleotides
+# https://www.bioinformatics.org/sms/iupac.html
 _key = {
+    "n": "a|c|g|t",
+    "x": "a|c|g|t",
+    "d": "a|g|t",
+    "h": "a|c|t",
+    "v": "a|c|g",
+    "b": "c|g|t",
     "r": "a|g",
     "y": "c|t",
     "m": "a|c",
     "w": "a|t",
     "k": "g|t",
+    "s": "c|g",
     "a": "a",
     "c": "c",
     "g": "g",
@@ -51,11 +62,40 @@ _key = {
 }
 
 
-def _find_primer(seq, primer):
-    # For cleanliness
+def _find_primer(seq: str, primer: str) -> list:
+    """
+    Given a sequence and a primer, returns the trimmed sequence. Handles empty
+    primers and named primers.
+
+    Args:
+    -----
+    seq: str
+        Nucleotide sequence to trim
+    primer: str
+        Primer with which to trim the sequence. Can be empty, a named primer, or
+        a custom primer (specified by nucleotide sequence).
+
+    Returns:
+    --------
+    list: [str, str] or [str]
+        If the primer is found, returns the sequence split into the sequence
+        before the first occurrence of the primer and the sequence after the
+        first occurrence of the primer. If the primer is not found, returns the
+        original sequence in a list.
+
+    Raises:
+    -------
+    TODO
+    """
+
+    # For cleanliness, handle empty primers:
     if primer is None or primer == "":
         return [seq]
         # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
+
+    # Handle named primers
+    elif primer in _primers:
+        primer = _primers[primer]
 
     # Turn primer into regex
     re_primer = "".join([_key[x] for x in primer.lower()])
@@ -64,7 +104,27 @@ def _find_primer(seq, primer):
     return out
 
 
-def _trim_primers(seq, left, right):
+def _trim_primers(seq: str, left: str, right: str) -> str:
+    """
+    Trim a sequence by a left and right primer.
+
+    Args:
+    -----
+    seq: str
+        Nucleotide sequence to trim.
+    left: str
+        Primer with which to trim the sequence from the 3' end.
+    right: str
+        Primer with which to trim the sequence from the 5' end.
+
+    Returns:
+    --------
+    str: trimmed sequence
+
+    Raises:
+    -------
+    TODO
+    """
     # Input stuff
     seq = str(seq).lower()
 
@@ -80,12 +140,35 @@ def _trim_primers(seq, left, right):
 
 
 def filter_db(
-    path_to_dnaA=f"{_DD}/allDnaA.tsv",
-    path_to_16s=f"{_DD}/allSSU.tsv",
-    left_primer=None,
-    right_primer=None,
+    path_to_dnaA: str = f"{_DD}allDnaA.tsv",
+    path_to_16s: str = f"{_DD}allSSU.tsv",
+    left_primer: str = None,
+    right_primer: str = None,
 ) -> pd.DataFrame:
-    """Filter DB by adapters, return candidate sequences"""
+    """
+    Filter DB by adapters, return candidate sequences
+
+    Args:
+    -----
+    path_to_dnaA: str
+        Path to the DnaA gene table.
+    path_to_16s: str
+        Path to the 16S rRNA gene table.
+    left_primer: str
+        Primer with which to trim the sequence from the 3' end.
+    right_primer: str
+        Primer with which to trim the sequence from the 5' end.
+
+    Returns:
+    --------
+    pd.DataFrame:
+        Filtered table of trimmed candidate sequences. Discards any genomes that
+        no longer have two or more unique candidate sequences after trimming.
+
+    Raises:
+    -------
+    TODO
+    """
 
     # Get tables
     dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
@@ -165,8 +248,34 @@ def filter_db(
     return table
 
 
-def generate_vsearch_db(db, output_file=f"{_DD}vsearch_db.fa", method="seq"):
-    with open(output_file, "w+") as f:
+def save_as_vsearch_db(
+    db: pd.DataFrame,
+    output_file_path: str = f"{_DD}vsearch_db.fa",
+    method: str = "seq",
+) -> None:
+    """
+    Given a dataframe of candidate sequences, save in VSEARCH-compatible format.
+
+    Args:
+    -----
+    db: pd.DataFrame
+        Table of candidate sequences. Output by filter_db().
+    output_file_path: str
+        Path to which to save the VSEARCH-compatible database.
+    method: str
+        Method by which to name database entries. Options are:
+        - 'id': Sequences named according to their genome ID.
+        - 'seq': Sequences named according to their hashed sequence.
+
+    Returns:
+    --------
+    None (writes to file)
+
+    Raises:
+    -------
+    None
+    """
+    with open(output_file_path, "w+") as f:
         if method == "id":
             for _, (id, seq) in db[["feature", "16s_sequence"]].iterrows():
                 print(f">{id}\n{seq}", file=f)

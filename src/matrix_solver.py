@@ -1,19 +1,20 @@
 """ Class for solving OTU matrix """
 
 import numpy as np
+from typing import List, Dict, Tuple
 
 
 class OTUSolver:
-    """ Uses gradient descent and known 16S positions to estimate abundance and PTR from a set of coverages. """
+    """Uses gradient descent and known 16S positions to estimate abundance and PTR from a set of coverages."""
 
     def __init__(
         self,
-        genomes: list,
+        genomes: List[Dict[str, list]],
         abundances: np.ndarray = None,
         ptrs: np.array = None,
         coverages: np.array = None,
     ) -> None:
-        """ Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs' """
+        """Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs'"""
 
         # Save genome info, just in case, + get matrix sizes
         self.genomes = genomes
@@ -56,7 +57,7 @@ class OTUSolver:
         self.b_hat = None
         self.best_loss = None
 
-    def _g(self, abundances, ptrs):
+    def _g(self, abundances: np.ndarray, ptrs: np.ndarray) -> np.ndarray:
         """
         Compute the unconvolved log-coverage vector
 
@@ -74,9 +75,11 @@ class OTUSolver:
         D = self.dists
         return a @ C + 1 - b @ D
 
-    def compute_coverages(self, abundances, ptrs):
+    def compute_coverages(
+        self, abundances: np.ndarray, ptrs: np.ndarray
+    ) -> np.ndarray:
         """
-        Compute the convolved coverage vector (corresponds to observed coverages)
+        Compute convolved coverage vector (= observed coverages)
 
         f = exp(g)E = exp(aC + 1 - bD)E
 
@@ -91,7 +94,12 @@ class OTUSolver:
         E = self.gene_to_seq
         return np.exp(g) @ E
 
-    def set_coverages(self, abundances=None, ptrs=None, coverages=None):
+    def set_coverages(
+        self,
+        abundances: np.ndarray = None,
+        ptrs: np.ndarray = None,
+        coverages: np.ndarray = None,
+    ) -> None:
         """Set log-abundances and log-PTRs and/or true coverages for a system"""
 
         if abundances is not None and ptrs is not None:
@@ -101,7 +109,9 @@ class OTUSolver:
         else:
             self.coverages = coverages
 
-    def loss(self, abundances=None, ptrs=None):
+    def loss(
+        self, abundances: np.ndarray = None, ptrs: np.ndarray = None
+    ) -> float:
         """Compute the MSE between empirical and predicted coverages"""
 
         # Use a_hat, b_hat
@@ -117,7 +127,9 @@ class OTUSolver:
         else:
             raise Exception("No known coverages computed!")
 
-    def gradients(self, abundances=None, ptrs=None):
+    def gradients(
+        self, abundances: np.ndarray = None, ptrs: np.ndarray = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute gradients of the loss function w/r/t log-abundances, log-PTRs.
 
@@ -154,7 +166,9 @@ class OTUSolver:
 
         return dL_da, dL_db
 
-    def guess(self, abundances=None, ptrs=None):
+    def guess(
+        self, abundances: np.ndarray = None, ptrs: np.ndarray = None
+    ) -> None:
         """Set an initial set of params"""
 
         # A reasonable automatic guess
@@ -167,8 +181,8 @@ class OTUSolver:
         self.a_hat = abundances
         self.b_hat = ptrs
 
-    def training_step(self, lr=0.0001):
-        """ One training step """
+    def training_step(self, lr: float = 0.0001) -> float:
+        """One training step"""
 
         loss = self.loss(self.a_hat, self.b_hat)
         da, db = self.gradients(self.a_hat, self.b_hat)
@@ -179,13 +193,13 @@ class OTUSolver:
 
     def train(
         self,
-        lr=0.0001,
-        tolerance=0.001,
-        frequency=1000,
-        max_steps=np.inf,
-        verbose=False,
-    ):
-        """ Learn log-abundances, log-PTRs until convergence in loss """
+        lr: float = 0.0001,
+        tolerance: float = 0.001,
+        frequency: int = 1000,
+        max_steps: int = np.inf,
+        verbose: bool = False,
+    ) -> int:
+        """Learn log-abundances, log-PTRs until convergence in loss"""
 
         self.guess()
         i = 0
