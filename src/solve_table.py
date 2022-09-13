@@ -5,6 +5,7 @@ from typing import Tuple
 import pandas as pd
 import numpy as np
 from .matrix_solver import OTUSolver
+from .torch_solver import TorchSolver
 from .database import RnaDB
 
 
@@ -36,7 +37,6 @@ def _find_candidates(sample: pd.Series, db: RnaDB) -> Tuple[pd.DataFrame, list]:
 
     # Pass 1: find all genomes with nonzero read counts
     md5s = sample[sample > 0].index
-    # genome_hits = [(find_genomes_by_md5(md5, db)) for md5 in md5s]
     genome_hits = [db.find_genomes_by_md5(md5) for md5 in md5s]
     counts = defaultdict(lambda: 0)
 
@@ -50,8 +50,6 @@ def _find_candidates(sample: pd.Series, db: RnaDB) -> Tuple[pd.DataFrame, list]:
     candidates = []
     keep_md5s = set()
     for genome in genomes_filtered:
-        unused_str = "hello world"
-        # genome_md5s = set(db[db["genome"] == genome]["md5"].unique())
         genome_md5s = set(db[genome]["md5"].unique())
         n_seqs = len(genome_md5s)
         if n_seqs == counts[genome]:
@@ -69,7 +67,8 @@ def solve_all(
     db_path: str = None,
     left_adapter: str = None,
     right_adapter: str = None,
-    true_values: str = None,
+    torch: bool = False,
+    **kwargs,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Calls all the other functions to solve a TSV of coverages with a database
@@ -87,9 +86,10 @@ def solve_all(
         The 3' adapter used to sequence the RNAs.
     right_adapter: str
         The 5' adapter used to sequence the RNAs.
-    true_values: str
-        Path to a TSV of true PTRs. Should have the same columns as the OTU
-        table and be indexed on genome ID.
+    torch: bool
+        Whether to use the torch solver. If False, will use the matrix solver.
+    **kwargs: dict
+        Additional arguments to pass to the solver's train() method.
 
     Returns:
     --------
@@ -119,29 +119,19 @@ def solve_all(
         coverages, candidates = _find_candidates(sample, db)
         if len(candidates) > 0:
             # Get genome objects (containing OOR and 16S RNA coordinates)
-            print(column)
-            print(candidates)
             genomes, all_seqs = db.generate_genome_objects(candidates)
 
             # Reorder according to generate_genome_objects
             sample = sample.loc[all_seqs]
 
             # Solve for PTRs
-            solver = OTUSolver(genomes, coverages=coverages.values)
-            solver.train(lr=0.001, tolerance=0.0001, verbose=True)
-            print(
-                "Abundances", np.exp(solver.a_hat), "PTRs", np.exp(solver.b_hat)
-            )
-            print(
-                "True",
-                solver.coverages,
-                "Predicted",
-                solver.compute_coverages(solver.a_hat, solver.b_hat),
-            )
-            print()
+            if torch:
+                solver = TorchSolver(genomes, coverages=coverages.values)
+            else:
+                solver = OTUSolver(genomes, coverages=coverages.values)
+            solver.train(verbose=True, **kwargs)
 
             # Add to output table
-            # TODO: test that this actually works
             out = out.append(
                 pd.DataFrame(
                     {
@@ -154,7 +144,6 @@ def solve_all(
             )
 
     # Return output tables
-    # TODO: test that this actually works
     ptrs = out.pivot(index="genome", columns="sample", values="ptr")
     abundances = out.pivot(index="genome", columns="sample", values="abundance")
 

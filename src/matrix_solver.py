@@ -1,7 +1,7 @@
 """ Class for solving OTU matrix """
 
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Callable
 
 
 class OTUSolver:
@@ -193,7 +193,8 @@ class OTUSolver:
 
     def train(
         self,
-        lr: float = 0.0001,
+        # lr: float = 0.0001,
+        lr_scheduler: Callable[[int], float] = lambda x: 0.0001,
         tolerance: float = 0.001,
         frequency: int = 1000,
         max_steps: int = np.inf,
@@ -207,6 +208,7 @@ class OTUSolver:
         last_loss = np.inf
         while loss_diff > tolerance and i < max_steps:
             i += 1
+            lr = lr_scheduler(i)
             loss = self.training_step(lr=lr)
             if i % frequency == 0:
                 loss_diff = last_loss - loss

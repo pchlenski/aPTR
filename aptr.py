@@ -5,15 +5,14 @@
 import os
 import uuid
 import argparse
-import pickle
 import pandas as pd
 from src.preprocess_samples import preprocess_samples
 from src.new_filter import filter_db, save_as_vsearch_db
 from src.solve_table import solve_all, score_predictions
 
 
-def run_aptr():
-    # Argument parsing
+def get_args():
+    """All arguments for the aPTR pipeline"""
     parser = argparse.ArgumentParser(
         description="aPTR: a pipeline for solving metagenomic samples",
     )
@@ -44,7 +43,19 @@ def run_aptr():
         type=str,
         help="Path to an OTU table. Skips preprocessing.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--torch",
+        action="store_true",
+        help="Use PyTorch instead of NumPy for matrix operations.",
+        default=False,
+    )
+    return parser.parse_args()
+
+
+def run_aptr():
+    """Run the aPTR pipeline"""
+    # Get arguments
+    args = get_args()
 
     # Suppress pandas indexing warning
     pd.options.mode.chained_assignment = None
@@ -60,7 +71,8 @@ def run_aptr():
             left_primer=args.adapter1,
             right_primer=args.adapter2,
         )
-        db_path = f"{outdir}/db.fasta"
+        db_path = f"{outdir}/db.pkl"
+        db_fasta_path = f"{outdir}/db.fasta"
         try:
             os.mkdir(outdir)
         except FileExistsError:
@@ -68,7 +80,7 @@ def run_aptr():
         print(f"Output directory UUID: {outdir}")
 
         # Save a reduced database with adapters cut
-        save_as_vsearch_db(db, output_file_path=db_path)
+        save_as_vsearch_db(db, output_file_path=db_fasta_path)
         db.to_pickle(f"{outdir}/db.pkl")
 
     # All the preprocessing takes place here
@@ -90,18 +102,25 @@ def run_aptr():
         db_path=db_path,
         left_adapter=args.adapter1,
         right_adapter=args.adapter2,
-        true_values=None,  # TODO: find some true values to try on, e.g. from simulation or coPTR
+        torch=args.torch,
     )
 
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
     inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
 
-    # Score predictions
+    # Score PTRs
     ptr_scores = score_predictions(
-        inferred_ptrs=inferred_ptrs,
-        true_ptrs=pd.read_csv(f"{args.path}/ptrs.csv"),
+        predictions=inferred_ptrs,
+        true_values=pd.read_table(f"{args.path}/ptrs.tsv", index_col=0),
     )
     print(ptr_scores, file=open(f"{outdir}/ptr_scores.txt", "w"))
+
+    # Score abundances
+    abundance_scores = score_predictions(
+        predictions=inferred_abundances,
+        true_values=pd.read_table(f"{args.path}/coverages.tsv", index_col=0),
+    )
+    print(abundance_scores, file=open(f"{outdir}/abundance_scores.txt", "w"))
 
     # Cleanup intermediate files
     for subdir in ["trimmed", "merged", "stats", "filtered", "derep"]:
