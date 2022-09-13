@@ -52,7 +52,7 @@ def run_aptr():
     outdir = f"{args.path}/aptr_{uuid.uuid4()}"
 
     if args.db_path:
-        db = pickle.load(open(args.db_path, "rb"))
+        db_path = args.db_path
     else:
         db = filter_db(
             path_to_dnaA="./data/allDnaA.tsv",
@@ -87,7 +87,7 @@ def run_aptr():
     # Infer PTRs
     inferred_ptrs, inferred_abundances = solve_all(
         otu_table_path=otu_path,
-        db_path=f"{outdir}/db.pkl",
+        db_path=db_path,
         left_adapter=args.adapter1,
         right_adapter=args.adapter2,
         true_values=None,  # TODO: find some true values to try on, e.g. from simulation or coPTR

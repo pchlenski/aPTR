@@ -121,3 +121,13 @@ vsearch --usearch_global path/all.fasta \
     --db ../db.fasta \
     --otutabout ./all.tsv
 ```
+
+## Guide to various scripts
+`aptr.py`: My draft of a script for running aPTR. You need to point it at a 
+directory containing a `reads` subdirectory and give it your 16S primers, 
+and it will generate an OTU table and database for you. If you already have some
+of those things, use the flags `--db_path` and `otu_path` to specify a database (fasta file).
+
+`get_sequences_from_patric.py` downloads all genomes in the large OTU database. This will take up 1.3 GB of space.
+
+`simulate_complete_genomes.py` simulates genomes from those sequences in analogous FASTQ files corresponding to WGS reads and an OTU matrix showing just the in-frame 16S hits. 
