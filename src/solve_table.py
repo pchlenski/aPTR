@@ -159,3 +159,38 @@ def solve_all(
     abundances = out.pivot(index="genome", columns="sample", values="abundance")
 
     return ptrs, abundances
+
+
+def score_predictions(
+    predictions: pd.DataFrame, true_values: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Given a dataframe of predicted PTRs and a dataframe of true PTRs, compute
+    the mean squared error for each sample.
+
+    Args:
+    -----
+    predictions: pd.DataFrame
+        A dataframe of predicted PTRs, indexed by genome ID and sample ID.
+    true_values: pd.DataFrame
+        A dataframe of true PTRs, indexed by genome ID and sample ID.
+
+    Returns:
+    --------
+    scores: pd.DataFrame
+        A dataframe of mean squared errors, indexed by sample ID.
+
+    Raises:
+    -------
+    TODO
+    """
+
+    # Compute mean squared error for each sample. Going by columns gives us a
+    # rudimentary degree of permutation invariance.
+    scores = pd.DataFrame()
+    for column in predictions.columns:
+        scores[column] = np.mean(
+            (predictions[column] - true_values[column]) ** 2
+        )
+
+    return scores

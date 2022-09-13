@@ -34,7 +34,7 @@ else:
     raise NotImplementedError("Simulation from draft genomes not implemented")
 
 # Unique output directory
-path = f"{OUTDIR}/{uuid4()}"
+path = f"{OUTDIR}/sim_{uuid4()}"
 os.mkdir(path)
 os.mkdir(f"{path}/reads")
 

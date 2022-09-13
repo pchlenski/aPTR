@@ -9,7 +9,7 @@ import pickle
 import pandas as pd
 from src.preprocess_samples import preprocess_samples
 from src.new_filter import filter_db, save_as_vsearch_db
-from src.solve_table import solve_all
+from src.solve_table import solve_all, score_predictions
 
 
 def run_aptr():
@@ -34,9 +34,15 @@ def run_aptr():
         help="Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT -G/-g option.",
         default="",
     )
-    parser.add_argument("--db_path", type=str, help="Path to an RnaDB object.")
     parser.add_argument(
-        "--no-vsearch", action="store_true", help="Don't use VSEARCH"
+        "--db_path",
+        type=str,
+        help="Path to an RnaDB object. Skips database generation.",
+    )
+    parser.add_argument(
+        "--otu_path",
+        type=str,
+        help="Path to an OTU table. Skips preprocessing.",
     )
     args = parser.parse_args()
 
@@ -66,7 +72,9 @@ def run_aptr():
         db.to_pickle(f"{outdir}/db.pkl")
 
     # All the preprocessing takes place here
-    if not args.no_vsearch:
+    if args.otu_path:
+        otu_path = args.otu_path
+    else:
         preprocess_samples(
             path=args.path,
             adapter1=args.adapter1,
@@ -75,8 +83,6 @@ def run_aptr():
             outdir=outdir,
         )
         otu_path = f"{outdir}/filtered/otu_table.tsv"
-    else:
-        otu_path = f"{args.path}/otu_table.tsv"
 
     # Infer PTRs
     inferred_ptrs, inferred_abundances = solve_all(
@@ -89,6 +95,13 @@ def run_aptr():
 
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
     inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
+
+    # Score predictions
+    ptr_scores = score_predictions(
+        inferred_ptrs=inferred_ptrs,
+        true_ptrs=pd.read_csv(f"{args.path}/ptrs.csv"),
+    )
+    print(ptr_scores, file=open(f"{outdir}/ptr_scores.txt", "w"))
 
     # Cleanup intermediate files
     for subdir in ["trimmed", "merged", "stats", "filtered", "derep"]:
