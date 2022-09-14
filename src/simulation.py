@@ -67,7 +67,6 @@ def ptr_curve(
     x_original = x_array.copy()
 
     # Reflect about trough for values not in the first half
-    # TODO: this trough is wrong!!!!!!!
     x_array[np.where(x_array > 0.5)] = 1 - x_array[np.where(x_array > 0.5)]
 
     # Return the normalized probability. Here the coverage at the peak is the PTR, and the coverage at the trough is 1.
@@ -110,6 +109,7 @@ def generate_reads(
     ptr: float = 1.0,
     oor: int = 0,
     name: str = "",
+    skip_wgs: bool = False,
 ) -> list:
     """
     Generates synthetic reads from a given sequence.
@@ -131,6 +131,8 @@ def generate_reads(
         Integer. At which position to simulate the coverage peak.
     name:
         String. What name to give this organism in the simulated reads.
+    skip_wgs:
+        Boolean. Whether to skip generating reads.
 
     Returns:
     --------
@@ -191,14 +193,17 @@ def generate_reads(
             otu_name = db.iloc[np.argmin(dists)]["md5"]
             rna_reads[otu_name] += 1
 
-        # Concatenate into a plausible-looking fastq output and push to output
-        fastq_line1 = f"@{name}:{idx}:{start}:{end}"
-        fastq_line2 = read
-        fastq_line3 = "+"
-        fastq_line4 = read_length * "I"  # Max quality, I guess?
-        reads.append(
-            "\n".join([fastq_line1, fastq_line2, fastq_line3, fastq_line4])
-        )
+        if not skip_wgs:
+            # Concatenate into a plausible-looking fastq output and push to output
+            fastq_line1 = f"@{name}:{idx}:{start}:{end}"
+            fastq_line2 = read
+            fastq_line3 = "+"
+            fastq_line4 = read_length * "I"  # Max quality, I guess?
+            reads.append(
+                "\n".join([fastq_line1, fastq_line2, fastq_line3, fastq_line4])
+            )
+        else:
+            reads = None
 
     return reads, rna_reads
 
@@ -213,6 +218,7 @@ def simulate(
     scale: float = 1e5,
     verbose: bool = True,
     shuffle: bool = True,
+    skip_wgs: bool = False,
 ) -> Tuple[List[List[str]], np.array, np.array, np.array]:
     """
     Given known PTRs and coverages, generate synthetic reads.
@@ -239,6 +245,8 @@ def simulate(
     shuffle: bool
         If true, will shuffle the order of genomes in the output. Suppress this
         to prevent OOM errors when generating large datasets.
+    skip_wgs: bool
+        If true, will only return an OTU matrix.
 
     Returns:
     --------
@@ -319,14 +327,20 @@ def simulate(
                 name=genome,
                 oor=start,
                 read_length=read_length,
+                skip_wgs=skip_wgs,
             )
-            sample += reads
+            if not skip_wgs:
+                sample += reads
+
             otu_matrix.append(rna_reads)
 
         if shuffle:
             rng.shuffle(sample)
 
-        samples.append(sample)
+        if not skip_wgs:
+            samples.append(sample)
+        else:
+            samples = None
 
     return samples, ptrs, coverages, otu_matrix
 

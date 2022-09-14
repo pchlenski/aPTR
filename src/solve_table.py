@@ -68,6 +68,7 @@ def solve_all(
     left_adapter: str = None,
     right_adapter: str = None,
     torch: bool = False,
+    n_epochs: int = 100,
     **kwargs,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -88,6 +89,8 @@ def solve_all(
         The 5' adapter used to sequence the RNAs.
     torch: bool
         Whether to use the torch solver. If False, will use the matrix solver.
+    n_epochs: int
+        Number of epochs to train the torch solver for. Only used if torch=True.
     **kwargs: dict
         Additional arguments to pass to the solver's train() method.
 
@@ -126,10 +129,14 @@ def solve_all(
 
             # Solve for PTRs
             if torch:
-                solver = TorchSolver(genomes, coverages=coverages.values)
+                solver = TorchSolver()
+                solver.set_vals(genomes=genomes, coverages=coverages)
+                for _ in range(n_epochs):
+                    solver.train(**kwargs)
+
             else:
                 solver = OTUSolver(genomes, coverages=coverages.values)
-            solver.train(verbose=True, **kwargs)
+                solver.train(verbose=True, **kwargs)
 
             # Add to output table
             out = out.append(

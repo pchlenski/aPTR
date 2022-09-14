@@ -7,9 +7,10 @@ from typing import List, Dict, Tuple, Callable
 
 
 class TorchSolver(torch.nn.Module):
-    def __init__(self, genomes, abundances, ptrs, coverages):
-        super(TorchSolver, self).__init__()
+    def __init__(self):
+        super().__init__()
 
+    def set_vals(self, genomes, coverages, abundances=None, ptrs=None):
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
         self.n = len(genomes)
@@ -35,19 +36,7 @@ class TorchSolver(torch.nn.Module):
             i = j
 
         # Compute coverages, etc
-        if abundances is not None and ptrs is not None:
-            self.set_coverages(
-                abundances=torch.tensor(abundances), ptrs=torch.tensor(ptrs)
-            )
-        else:
-            self.ptrs = None
-            self.abundances = None
-            if coverages is not None:
-                self.set_coverages(
-                    coverages=torch.tensor(coverages, dtype=torch.float32)
-                )
-            else:
-                self.coverages = None
+        self.coverages = torch.tensor(coverages, dtype=torch.float32)
 
         # Other attributes used during prediction
         self.a_hat = torch.rand(size=(self.n,))
