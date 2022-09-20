@@ -109,7 +109,7 @@ def generate_reads(
     ptr: float = 1.0,
     oor: int = 0,
     name: str = "",
-    skip_wgs: bool = False,
+    fastq: bool = False,
 ) -> list:
     """
     Generates synthetic reads from a given sequence.
@@ -131,8 +131,8 @@ def generate_reads(
         Integer. At which position to simulate the coverage peak.
     name:
         String. What name to give this organism in the simulated reads.
-    skip_wgs:
-        Boolean. Whether to skip generating reads.
+    fastq:
+        Boolean. Whether to generate fastq reads.
 
     Returns:
     --------
@@ -181,8 +181,8 @@ def generate_reads(
     # Vectorizing saves a lot of time, e.g. we can do 1e6 reads in 20s vs 2m
     ends = starts + read_length
 
-    # This part can't be vectorized
-    if not skip_wgs:
+    # This part can't fully be vectorized
+    if fastq:
         # Get reads
         reads = [str(new_seq[start:end]) for start, end in zip(starts, ends)]
 
@@ -202,7 +202,7 @@ def generate_reads(
         rna_reads[name] += 1
 
     # Concatenate into a plausible-looking fastq output and push to output
-    if not skip_wgs:
+    if fastq:
         reads_out = []
         for idx, (start, end, read) in enumerate(zip(starts, ends, reads)):
             fastq_line1 = f"@{name}:{idx}:{start}:{end}"
