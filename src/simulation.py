@@ -148,6 +148,9 @@ def generate_reads(
     TODO
     """
 
+    # Use RNG for speed improvements
+    rng = np.random.default_rng()
+
     # Ensure OOR is int
     oor = int(oor)
 
@@ -170,42 +173,49 @@ def generate_reads(
 
     # Sample starts from the ptr-adjusted distribution
     _x, probs = ptr_curve(seq_length, ptr, oor)
-    positions = range(seq_length)
+    positions = np.arange(seq_length)
 
-    starts = np.random.choice(positions, p=probs, size=n_reads)
+    # starts = np.random.choice(positions, p=probs, size=n_reads)
+    starts = rng.choice(positions, p=probs, size=n_reads)
 
-    # Given starts, make sequences
-    reads = []
-    for idx, start in enumerate(starts):
-        # Get the read
-        end = start + read_length
-        read = str(new_seq[start:end])
+    # Vectorizing saves a lot of time, e.g. we can do 1e6 reads in 20s vs 2m
+    ends = starts + read_length
 
-        # Add reverse complement --- patch #2 04.07.2021
-        if np.random.rand() > 0.5:
-            read = reverse_complement(read)
-            start, end = end, start
+    # This part can't be vectorized
+    if not skip_wgs:
+        # Get reads
+        reads = [str(new_seq[start:end]) for start, end in zip(starts, ends)]
 
-        # Check for RNA membership --- patch #3 08.22.2021
-        dists = [np.abs(rna - start) for rna in rnas]
-        if dists and np.min(dists) < read_length:
-            # TODO: redo this using strand, start, and stop
-            otu_name = db.iloc[np.argmin(dists)]["md5"]
-            rna_reads[otu_name] += 1
+        # Add reverse complement for 50% of reads
+        rev_mask = np.random.rand(n_reads) > 0.5
+        reads = np.array(reads)
+        reads[rev_mask] = [reverse_complement(read) for read in reads[rev_mask]]
 
-        if not skip_wgs:
-            # Concatenate into a plausible-looking fastq output and push to output
+    # Check for RNA membership
+    # TODO: double-check this logic, stepping through it with a debugger
+    dists = np.abs(
+        np.array(rnas, dtype=int) - starts[:, None]
+    )  # vectorized to 2D; dtype=int to avoid OOM errors
+    rna_mask = np.min(dists, axis=1) < read_length
+    rna_names = db.iloc[np.argmin(dists, axis=1)]["md5"]
+    for name in rna_names[rna_mask]:
+        rna_reads[name] += 1
+
+    # Concatenate into a plausible-looking fastq output and push to output
+    if not skip_wgs:
+        reads_out = []
+        for idx, (start, end, read) in enumerate(zip(starts, ends, reads)):
             fastq_line1 = f"@{name}:{idx}:{start}:{end}"
             fastq_line2 = read
             fastq_line3 = "+"
-            fastq_line4 = read_length * "I"  # Max quality, I guess?
-            reads.append(
+            fastq_line4 = read_length * "I"
+            reads_out.append(
                 "\n".join([fastq_line1, fastq_line2, fastq_line3, fastq_line4])
             )
-        else:
-            reads = None
+    else:
+        reads_out = None
 
-    return reads, rna_reads
+    return reads_out, rna_reads
 
 
 def simulate(

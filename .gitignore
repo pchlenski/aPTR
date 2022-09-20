@@ -7,4 +7,5 @@ tmp/
 data/
 experiments/
 *.pyc
-notebooks/
+notebooks/scratch*
+notebooks/.ipynb_checkpoints
