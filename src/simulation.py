@@ -172,7 +172,7 @@ def generate_reads(
     )  # just to distinguish between rc and forward strand
 
     # Sample starts from the ptr-adjusted distribution
-    _x, probs = ptr_curve(seq_length, ptr, oor)
+    _, probs = ptr_curve(seq_length, ptr, oor)
     positions = np.arange(seq_length)
 
     # starts = np.random.choice(positions, p=probs, size=n_reads)
@@ -228,7 +228,7 @@ def simulate(
     scale: float = 1e5,
     verbose: bool = True,
     shuffle: bool = True,
-    skip_wgs: bool = False,
+    fastq: bool = True,
 ) -> Tuple[List[List[str]], np.array, np.array, np.array]:
     """
     Given known PTRs and coverages, generate synthetic reads.
@@ -255,8 +255,8 @@ def simulate(
     shuffle: bool
         If true, will shuffle the order of genomes in the output. Suppress this
         to prevent OOM errors when generating large datasets.
-    skip_wgs: bool
-        If true, will only return an OTU matrix.
+    fastq: bool
+        If true, will return reads and an OTU matrix.
 
     Returns:
     --------
@@ -337,9 +337,9 @@ def simulate(
                 name=genome,
                 oor=start,
                 read_length=read_length,
-                skip_wgs=skip_wgs,
+                fastq=fastq,
             )
-            if not skip_wgs:
+            if fastq:
                 sample += reads
 
             otu_matrix.append(rna_reads)
@@ -347,7 +347,7 @@ def simulate(
         if shuffle:
             rng.shuffle(sample)
 
-        if not skip_wgs:
+        if fastq:
             samples.append(sample)
         else:
             samples = None
