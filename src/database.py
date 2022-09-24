@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import List
+from typing import List, Dict
 from .new_filter import filter_db
 
 
@@ -89,7 +89,9 @@ class RnaDB:
         d2 = np.abs(oor + length - pos)
         return np.minimum(d1, d2) / length
 
-    def generate_genome_objects(self, genome_ids: list) -> list:
+    def generate_genome_objects(
+        self, genome_ids: list
+    ) -> List[List[Dict[str, List[int]]], List[str]]:
         """
         Given a genome ID, return a 'genome' object
 
@@ -102,6 +104,8 @@ class RnaDB:
         --------
         list:
             List of genome objects corresponding to the input genome IDs.
+        list:
+            List of all sequences/md5s used
 
         Raises:
         -------

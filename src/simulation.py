@@ -52,7 +52,9 @@ def ptr_curve(
 
     # Check 0 < OOR < size
     if oor > size or oor < 0:
-        raise Exception("OOR must be in range 0 < OOR < size")
+        raise Exception(
+            f"OOR must be in range 0 < OOR < size. Was given OOR={oor} and size={size}"
+        )
 
     # Fix NaN:
     if np.isnan(oor):
@@ -282,7 +284,7 @@ def simulate(
     inputs = pd.DataFrame(columns=["Species", "Sample", "PTR", "Reads"])
 
     samples = []
-    otu_matrix = []
+    otu_matrix = pd.DataFrame(columns=range(n_samples))
 
     # Randomly choose PTRs
     if ptrs is None:
@@ -297,6 +299,7 @@ def simulate(
 
     for sample_no in range(n_samples):
         sample = []
+        sample_rna = []
 
         for idx, genome in enumerate(sequences):
             ptr = ptrs[idx, sample_no]
@@ -342,7 +345,11 @@ def simulate(
             if fastq:
                 sample += reads
 
-            otu_matrix.append(rna_reads)
+            sample_rna.append(rna_reads)
+
+        print("Sample RNA:")
+        print(sample_rna)
+        otu_matrix[sample_no] = pd.DataFrame(sample_rna).sum(axis=0)
 
         if shuffle:
             rng.shuffle(sample)
@@ -352,6 +359,9 @@ def simulate(
         else:
             samples = None
 
+        # Better output for OTU matrix
+        otu_matrix = pd.DataFrame(otu_matrix)  # , dtype=int).T
+
     return samples, ptrs, coverages, otu_matrix
 
 
@@ -360,6 +370,7 @@ def simulate_from_ids(
     ids: list,
     fasta_path: str,
     suffix: str = ".fna.gz",
+    fastq: bool = True,
     **simulate_args,
 ) -> Tuple[list, np.ndarray, np.ndarray, list]:
     """
@@ -375,6 +386,8 @@ def simulate_from_ids(
         String. The path to the directory containing fasta files.
     suffix:
         Sring. The suffix for fasta files.
+    fastq: bool
+        If True, geneerates actual fastq reads. Otherwise uses None
     **simulate_args:
         Arguments for the simulate() function
 
@@ -390,26 +403,36 @@ def simulate_from_ids(
     # Create dict of sequences
     sequences = {}
 
-    for gid in ids:
-        path = f"{fasta_path}/{gid}{suffix}"
-        sequences[gid] = []
+    if fastq:
+        for gid in ids:
+            path = f"{fasta_path}/{gid}{suffix}"
+            sequences[gid] = []
 
-        if suffix.endswith("gz"):
-            with gzip.open(path, "rt") as handle:
-                sequence = SeqIO.parse(handle, "fasta")
+            if suffix.endswith("gz"):
+                with gzip.open(path, "rt") as handle:
+                    sequence = SeqIO.parse(handle, "fasta")
+                    for record in sequence.records:
+                        sequences[gid].append(record.seq)
+
+            else:
+                sequence = SeqIO.parse(path, "fasta")
                 for record in sequence.records:
                     sequences[gid].append(record.seq)
 
-        else:
-            sequence = SeqIO.parse(path, "fasta")
-            for record in sequence.records:
-                sequences[gid].append(record.seq)
+        # TODO: remove reliance on this
+        sequences = {seq: sequences[seq][0] for seq in sequences}
+        # This only works for complete genomes
 
-    # TODO: remove reliance on this
-    sequences = {seq: sequences[seq][0] for seq in sequences}
-    # This only works for complete genomes
+    # A workaround to remove dependence on fasta files when fastq is False
+    else:
+        genome_lengths = (
+            db[db["genome"].isin(ids)].groupby("genome").max()["size"]
+        )  # Using .max() is hacky, but they should all be the same value
 
-    return simulate(db=db, sequences=sequences, **simulate_args)
+        sequences = {gid: "N" * genome_lengths[gid] for gid in ids}
+        # Need a fake value
+
+    return simulate(db=db, sequences=sequences, fastq=fastq, **simulate_args)
 
 
 def generate_reads_contig(

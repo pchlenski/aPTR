@@ -39,15 +39,18 @@ class TorchSolver(torch.nn.Module):
         self.coverages = torch.tensor(coverages, dtype=torch.float32)
 
         # Other attributes used during prediction
-        self.a_hat = torch.rand(size=(self.n,))
-        self.b_hat = torch.log(1 + torch.rand(size=(self.n,)))
+        self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
+        self.b_hat = torch.log(1 + torch.rand(size=(self.n,), requires_grad=True))
 
     def forward(
-        self, abundances: torch.tensor, ptrs: torch.tensor
+        # self, abundances: torch.tensor, ptrs: torch.tensor
+        self
     ) -> torch.tensor:
         """Compute convolved coverage vector (= observed coverages)"""
-        a = abundances
-        b = ptrs
+        # a = abundances
+        # b = ptrs
+        a = self.a_hat,
+        b = self.b_hat,
         C = self.members
         D = self.dists
         g = a @ C + 1 - b @ D
