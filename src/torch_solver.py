@@ -7,8 +7,9 @@ from typing import List, Dict, Tuple, Callable
 
 
 class TorchSolver(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
+        self.set_vals(**kwargs)
 
     def set_vals(self, genomes, coverages, abundances=None, ptrs=None):
         self.genomes = genomes
@@ -40,17 +41,17 @@ class TorchSolver(torch.nn.Module):
 
         # Other attributes used during prediction
         self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
-        self.b_hat = torch.log(1 + torch.rand(size=(self.n,), requires_grad=True))
+        self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
 
     def forward(
         # self, abundances: torch.tensor, ptrs: torch.tensor
-        self
+        self,
     ) -> torch.tensor:
         """Compute convolved coverage vector (= observed coverages)"""
         # a = abundances
         # b = ptrs
-        a = self.a_hat,
-        b = self.b_hat,
+        a = self.a_hat
+        b = torch.log(1 + self.b_hat)
         C = self.members
         D = self.dists
         g = a @ C + 1 - b @ D
