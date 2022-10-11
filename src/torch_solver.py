@@ -134,9 +134,11 @@ class TorchSolver(torch.nn.Module):
 
 
 def solve_table(
-    otus, genome_ids, db=RnaDB(), ptrs=None, abundances=None, **kwargs
+    otus, genome_ids, db=None, ptrs=None, abundances=None, **kwargs
 ):
     """Solve an entire OTUtable"""
+    if db is None:
+        db = RnaDB()
 
     # Need extra sanity checks if PTRs and abundances are given
     if abundances is not None and ptrs is not None:
