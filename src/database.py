@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from .new_filter import filter_db
 
 
@@ -91,7 +91,7 @@ class RnaDB:
 
     def generate_genome_objects(
         self, genome_ids: list
-    ) -> List[List[Dict[str, List[int]]], List[str]]:
+    ) -> Tuple[List[Dict[str, List[int]]], List[str]]:
         """
         Given a genome ID, return a 'genome' object
 

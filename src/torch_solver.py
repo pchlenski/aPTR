@@ -4,6 +4,7 @@
 import torch
 import numpy as np
 from typing import List, Dict, Tuple, Callable
+from .database import RnaDB
 
 
 class TorchSolver(torch.nn.Module):
@@ -11,7 +12,9 @@ class TorchSolver(torch.nn.Module):
         super().__init__()
         self.set_vals(**kwargs)
 
-    def set_vals(self, genomes, coverages, abundances=None, ptrs=None):
+    def set_vals(
+        self, genomes, coverages, abundances=None, ptrs=None, normalize=True
+    ):
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
         self.n = len(genomes)
@@ -38,266 +41,113 @@ class TorchSolver(torch.nn.Module):
 
         # Compute coverages, etc
         self.coverages = torch.tensor(coverages, dtype=torch.float32)
+        if normalize:
+            self.coverages /= torch.sum(self.coverages)
 
-        # Other attributes used during prediction
-        self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
-        self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
+        # # Other attributes used during prediction
+        # self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
+        # self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
 
-    def forward(
-        # self, abundances: torch.tensor, ptrs: torch.tensor
-        self,
-    ) -> torch.tensor:
-        """Compute convolved coverage vector (= observed coverages)"""
-        # a = abundances
-        # b = ptrs
+    def forward(self) -> torch.Tensor:
+        """
+        Compute convolved coverage vector (= observed coverages)
+
+        Assumes the following:
+        a = log-abundance
+        b = log-ptr
+        """
         a = self.a_hat
-        b = torch.log(1 + self.b_hat)
+        b = self.b_hat
         C = self.members
         D = self.dists
         g = a @ C + 1 - b @ D
         E = self.gene_to_seq
         return torch.exp(g) @ E
 
-
-class TorchSolver_deprecated:
-    """Uses gradient descent and known 16S positions to estimate abundance and PTR from a set of coverages."""
-
-    def __init__(
+    def train(
         self,
-        genomes: List[Dict[str, list]],
-        abundances: torch.tensor = None,
-        ptrs: torch.tensor = None,
-        coverages: torch.tensor = None,
-    ) -> None:
-        """Initialize 16S system. Assumes 'genomes' is a list of dicts keyed by 'pos' and 'seqs'"""
+        lr=1e-4,
+        epochs: int = 500,
+        iterations: int = 1000,
+        epsilon: float = 1e-1,
+        tolerance: int = 5,
+        a_hat: torch.Tensor = None,
+        b_hat: torch.Tensor = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[float]]:
+        """Initialize and train with SGD + Adam"""
 
-        # Save genome info, just in case, + get matrix sizes
-        self.genomes = genomes
-        self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
-        self.n = len(genomes)
-        self.m = torch.sum(
-            torch.tensor([len(genome["pos"]) for genome in genomes])
-        )
-        self.k = len(self.seqs)
+        # Initialize a_hat and b_hat
+        if a_hat is None:
+            a_hat = torch.rand(size=(self.n,), requires_grad=True)
+        elif type(a_hat) is np.ndarray:
+            a_hat = torch.from_numpy(a_hat).float().requires_grad_(True)
 
-        # Compute membership(C), distance (D) and gene_to_seq (E) matrices
-        self.members = torch.zeros(size=(self.n, self.m))
-        self.dists = torch.zeros(size=(self.n, self.m))
-        self.gene_to_seq = torch.zeros(size=(self.m, self.k))
-        i = 0
+        if b_hat is None:
+            b_hat = torch.rand(size=(self.n,), requires_grad=True)
+        elif type(b_hat) is np.ndarray:
+            b_hat = torch.from_numpy(b_hat).float().requires_grad_(True)
 
-        for g, genome in enumerate(genomes):
-            j = i + len(genome["pos"])
+        self.a_hat = a_hat
+        self.b_hat = b_hat
 
-            # Put indicator, position in correct row (g)
-            self.members[g, i:j] = 1
-            self.dists[g, i:j] = torch.tensor(genome["pos"])
+        optimizer = torch.optim.Adam([self.a_hat, self.b_hat], lr=lr)
 
-            # Keep track of sequences
-            for s, seq in enumerate(genome["seqs"]):
-                self.gene_to_seq[i + s, seq] = 1
-            i = j
+        best_loss, best_a_hat, best_b_hat = torch.inf, None, None
+        early_stop_counter = 0
+        losses = []
 
-        # Compute coverages, etc
-        if abundances is not None and ptrs is not None:
-            self.set_coverages(
-                abundances=torch.tensor(abundances), ptrs=torch.tensor(ptrs)
-            )
-        else:
-            self.ptrs = None
-            self.abundances = None
-            if coverages is not None:
-                self.set_coverages(
-                    coverages=torch.tensor(coverages, dtype=torch.float32)
+        for epoch in range(epochs):
+            for _ in range(iterations):
+                # Updates
+                optimizer.zero_grad()
+                f = self()
+                loss = torch.nn.functional.mse_loss(f, self.coverages)
+                losses.append(loss.item())
+                loss.backward(retain_graph=True)
+                optimizer.step()
+
+                # Ensure reasonable PTR
+                with torch.no_grad():
+                    self.b_hat = torch.clip(b_hat, 0, 2)  # ~7.8 is plenty
+
+            print(f"Epoch {epoch}:\t {loss}")
+            # Early stopping, per-epoch
+            if best_loss - loss > epsilon:
+                best_loss, best_a_hat, best_b_hat = (
+                    loss,
+                    self.a_hat.clone(),
+                    self.b_hat.clone(),
                 )
+                early_stop_counter = 0
             else:
-                self.coverages = None
+                early_stop_counter += 1
 
-        # Other attributes used during prediction
-        self.a_hat = None
-        self.b_hat = None
-        self.best_loss = None
+            if early_stop_counter > tolerance:
+                break
 
-    def _g(self, abundances: torch.tensor, ptrs: torch.tensor) -> torch.tensor:
-        """
-        Compute the unconvolved log-coverage vector
+        return (
+            best_a_hat.detach(),
+            best_b_hat.detach(),
+            losses,
+        )
 
-        g = aC + 1 - bD
 
-        a: log-abundances
-        C: membership matrix
-        b: log-PTRs
-        D: distance matrix
-        """
+def solve_table(otus, genome_ids, db=RnaDB(), ptrs=None, abundances=None):
+    """Solve an entire OTUtable"""
 
-        a = abundances
-        b = ptrs
-        C = self.members
-        D = self.dists
-        return a @ C + 1 - b @ D
+    # Need extra sanity checks if PTRs and abundances are given
+    if abundances is not None and ptrs is not None:
+        if abundances.shape != ptrs.shape:
+            raise Exception("abundances should have same shape as ptrs")
+        if abundances.shape[1] != otus.shape[1]:
+            raise Exception("number of samples is mismatched")
 
-    def forward(
-        self, abundances: torch.tensor, ptrs: torch.tensor
-    ) -> torch.tensor:
-        """
-        Compute convolved coverage vector (= observed coverages)
-
-        f = exp(g)E = exp(aC + 1 - bD)E
-
-        a: log-abundances
-        C: membership matrix
-        b: log-PTRs
-        D: distance matrix
-        E: sequence-sharing matrix
-        """
-
-        g = self._g(abundances, ptrs)
-        E = self.gene_to_seq
-        return torch.exp(g) @ E
-
-    def set_coverages(
-        self,
-        abundances: torch.tensor = None,
-        ptrs: torch.tensor = None,
-        coverages: torch.tensor = None,
-    ) -> None:
-        """Set log-abundances and log-PTRs and/or true coverages for a system"""
-
-        if abundances is not None and ptrs is not None:
-            self.abundances = torch.tensor(abundances)
-            self.ptrs = torch.tensor(ptrs)
-            self.coverages = self.compute_coverages(abundances, ptrs)
-        else:
-            self.coverages = coverages
-
-    # def loss(
-    #     self, abundances: torch.tensor = None, ptrs: torch.tensor = None
-    # ) -> float:
-    #     """Compute the MSE between empirical and predicted coverages"""
-
-    #     # Use a_hat, b_hat
-    #     if abundances is None:
-    #         abundances = self.a_hat
-    #     if ptrs is None:
-    #         ptrs = self.b_hat
-
-    #     # Compute loss if coverages are known
-    #     if self.coverages is not None:
-    #         f_hat = self.compute_coverages(abundances, ptrs)
-    #         # return torch.mean((f_hat - self.coverages) ** 2)
-    #         return torch.nn.MSELoss()(f_hat, self.coverages)
-    #     else:
-    #         raise Exception("No known coverages computed!")
-
-    # def gradients(
-    #     self, abundances: torch.tensor = None, ptrs: torch.tensor = None
-    # ) -> Tuple[torch.tensor, torch.tensor]:
-    #     """
-    #     Compute gradients of the loss function w/r/t log-abundances, log-PTRs.
-
-    #     L = MSE(f_predicted, f_observed)
-    #     dL/dg = 2/k exp(g) E(f_predicted - f_observed)
-    #     dL/da = CdL/dg
-    #     dL/db = -Ddl/dg
-
-    #     C: membership matrix
-    #     D: distance matrix
-    #     E: sequence-sharing matrix
-    #     f: convolved coverage vector
-    #     g: unconvolved log-coverage vector
-    #     """
-
-    #     # Use a_hat and b_hat as needed
-    #     if abundances is None:
-    #         abundances = self.a_hat
-    #     if ptrs is None:
-    #         ptrs = self.b_hat
-
-    #     # Get relevant matrices
-    #     C = self.members
-    #     D = self.dists
-    #     E = self.gene_to_seq
-    #     f_hat = self.compute_coverages(abundances, ptrs)
-    #     g = self._g(abundances, ptrs)
-
-    #     # Backprop computations
-    #     dL_df = f_hat - self.coverages
-    #     dL_dg = (2 / self.k) * torch.exp(g) * (E @ dL_df)
-    #     dL_da = C @ dL_dg
-    #     dL_db = -D @ dL_dg
-
-    #     return dL_da, dL_db
-
-    # def guess(
-    #     self, abundances: torch.tensor = None, ptrs: torch.tensor = None
-    # ) -> None:
-    #     """Set an initial set of params"""
-
-    #     # A reasonable automatic guess
-    #     if abundances is None:
-    #         abundances = torch.rand(self.n)
-    #     if ptrs is None:
-    #         ptrs = torch.log(1 + torch.rand(self.n))
-
-    #     # Save changes as system attributes
-    #     self.a_hat = abundances
-    #     self.b_hat = ptrs
-
-    # def training_step(self, lr: float = 0.0001) -> float:
-    #     """One training step"""
-
-    #     loss = self.loss(self.a_hat, self.b_hat)
-    #     da, db = self.gradients(self.a_hat, self.b_hat)
-    #     self.a_hat -= lr * da
-    #     self.b_hat -= lr * db
-
-    #     return loss
-
-    # def train(
-    #     self,
-    #     # lr: float = 0.0001,
-    #     lr_scheduler: Callable[[int], float] = lambda x: 0.0001,
-    #     tolerance: float = 0.001,
-    #     frequency: int = 1000,
-    #     max_steps: int = torch.inf,
-    #     verbose: bool = False,
-    # ) -> int:
-    #     """Learn log-abundances, log-PTRs until convergence in loss"""
-
-    #     self.guess()
-    #     i = 0
-    #     loss_diff = torch.inf
-    #     last_loss = torch.inf
-    #     while loss_diff > tolerance and i < max_steps:
-    #         i += 1
-    #         # lr = lr_scheduler(i)
-    #         # loss = self.training_step(lr=lr)
-    #         loss = self.training_step(lr=)
-    #         if i % frequency == 0:
-    #             loss_diff = last_loss - loss
-    #             last_loss = loss
-    #             if verbose:
-    #                 print(f"{i}\t{last_loss}\t{loss_diff}")
-
-    #     # Save some information about this round of training
-    #     self.best_loss = last_loss
-    #     return i
-
-    def train(self, n_epochs=1000, steps_per_print=100, **kwargs):
-        """Use Adam to apply gradients to model parameters"""
-
-        # Guess initial abundance and PTR
-        self.a_hat = torch.rand(size=(self.n,))
-        self.b_hat = torch.log(1 + torch.rand(size=(self.n,)))
-
-        # Use Adam to optimize
-        optimizer = torch.optim.Adam([self.a_hat, self.b_hat], lr=0.1)
-        for epoch in range(n_epochs):
-            optimizer.zero_grad()
-            output = self.forward(self.a_hat, self.b_hat)
-            loss = torch.nn.MSELoss()(output, self.coverages)
-            loss.requires_grad = True
-            loss.backward()
-            optimizer.step()
-            if epoch % steps_per_print == 0:
-                print(f"{epoch}\t{loss}")
+    # Initialize solver system
+    n_samples = otus.shape[1]
+    genomes, _ = db.generate_genome_objects(genome_ids)
+    solutions = []
+    for i in range(n_samples):
+        solver = TorchSolver(genomes=genomes, coverages=otus.iloc[:, i])
+        a, b, losses = solver.train()
+        solutions.append((a, b, losses))
+    return solutions

@@ -301,6 +301,9 @@ def simulate(
         sample = []
         sample_rna = []
 
+        if verbose:
+            print(f"Simulating sample {sample_no+1}/{n_samples}:")
+
         for idx, genome in enumerate(sequences):
             ptr = ptrs[idx, sample_no]
             n_reads = coverages[idx, sample_no]
@@ -326,7 +329,7 @@ def simulate(
                 start = 0
 
             if verbose:
-                print(f"Generating sample {sample_no} for organism {genome}...")
+                print(f"\tGenome {idx+1}/{len(sequences)}:\t{genome}")
 
             seq = sequences[genome]
 
@@ -347,8 +350,6 @@ def simulate(
 
             sample_rna.append(rna_reads)
 
-        print("Sample RNA:")
-        print(sample_rna)
         otu_matrix[sample_no] = pd.DataFrame(sample_rna).sum(axis=0)
 
         if shuffle:
@@ -366,11 +367,11 @@ def simulate(
 
 
 def simulate_from_ids(
-    db: pd.DataFrame,
-    ids: list,
-    fasta_path: str,
+    db: pd.DataFrame = None,
+    ids: list = None,
+    fasta_path: str = None,
     suffix: str = ".fna.gz",
-    fastq: bool = True,
+    fastq: bool = False,
     **simulate_args,
 ) -> Tuple[list, np.ndarray, np.ndarray, list]:
     """
@@ -393,12 +394,28 @@ def simulate_from_ids(
 
     Returns:
     --------
-    Same outputs as simulate()
+    Same outputs as simulate() [samples, ptrs, coverages, otu_matrix]
 
     Raises:
     -------
     TODO
     """
+
+    # DB processing
+    if db is None:
+        db = RnaDB().db
+    elif type(db) is RnaDB:
+        db = db.db
+
+    # Random IDs
+    if ids is None:
+        all_ids = db["genome"].unique().tolist()
+        ids = np.random.choice(all_ids, 10, replace=False).tolist()
+        print("No IDs specified. Sampling IDs randomly:" + str(ids))
+
+    # We don't need FASTAs if we're not really generating reads
+    if fasta_path is None and fastq:
+        raise Exception("If fastq is true, fasta_path must be set")
 
     # Create dict of sequences
     sequences = {}
