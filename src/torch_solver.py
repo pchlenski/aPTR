@@ -15,6 +15,7 @@ class TorchSolver(torch.nn.Module):
     def set_vals(
         self, genomes, coverages, abundances=None, ptrs=None, normalize=True
     ):
+        # TODO: handle case where "genomes" is a list of IDs
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
         self.n = len(genomes)
@@ -48,7 +49,7 @@ class TorchSolver(torch.nn.Module):
         # self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
         # self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
 
-    def forward(self) -> torch.Tensor:
+    def forward(self, a, b) -> torch.Tensor:
         """
         Compute convolved coverage vector (= observed coverages)
 
@@ -56,8 +57,6 @@ class TorchSolver(torch.nn.Module):
         a = log-abundance
         b = log-ptr
         """
-        a = self.a_hat
-        b = self.b_hat
         C = self.members
         D = self.dists
         g = a @ C + 1 - b @ D
@@ -66,14 +65,16 @@ class TorchSolver(torch.nn.Module):
 
     def train(
         self,
-        lr=1e-4,
+        lr=1e-3,
         epochs: int = 500,
         iterations: int = 1000,
         epsilon: float = 1e-1,
         tolerance: int = 5,
+        loss_fn: Callable = torch.nn.functional.mse_loss,
         a_hat: torch.Tensor = None,
         b_hat: torch.Tensor = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[float]]:
+        verbose: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
         # Initialize a_hat and b_hat
@@ -81,17 +82,15 @@ class TorchSolver(torch.nn.Module):
             a_hat = torch.rand(size=(self.n,), requires_grad=True)
         elif type(a_hat) is np.ndarray:
             a_hat = torch.from_numpy(a_hat).float().requires_grad_(True)
-
         if b_hat is None:
             b_hat = torch.rand(size=(self.n,), requires_grad=True)
         elif type(b_hat) is np.ndarray:
             b_hat = torch.from_numpy(b_hat).float().requires_grad_(True)
-
         self.a_hat = a_hat
         self.b_hat = b_hat
 
+        # Initialize optimizer and counters
         optimizer = torch.optim.Adam([self.a_hat, self.b_hat], lr=lr)
-
         best_loss, best_a_hat, best_b_hat = torch.inf, None, None
         early_stop_counter = 0
         losses = []
@@ -99,18 +98,20 @@ class TorchSolver(torch.nn.Module):
         for epoch in range(epochs):
             for _ in range(iterations):
                 # Updates
-                optimizer.zero_grad()
-                f = self()
-                loss = torch.nn.functional.mse_loss(f, self.coverages)
+                f_hat = self(self.a_hat, self.b_hat)
+                f_hat = f_hat / torch.sum(f_hat)  # normalize
+                loss = loss_fn(f_hat, self.coverages)
                 losses.append(loss.item())
-                loss.backward(retain_graph=True)
+                optimizer.zero_grad()
+                loss.backward()
                 optimizer.step()
 
-                # Ensure reasonable PTR
-                with torch.no_grad():
-                    self.b_hat = torch.clip(b_hat, 0, 2)  # ~7.8 is plenty
+                # Ensure reasonable PTR - e is generally enough
+                self.b_hat.data = self.b_hat.clamp(0, 1)
 
-            print(f"Epoch {epoch}:\t {loss}")
+            if verbose:
+                print(f"Epoch {epoch}:\t {loss}")
+
             # Early stopping, per-epoch
             if best_loss - loss > epsilon:
                 best_loss, best_a_hat, best_b_hat = (
@@ -126,13 +127,15 @@ class TorchSolver(torch.nn.Module):
                 break
 
         return (
-            best_a_hat.detach(),
-            best_b_hat.detach(),
+            best_a_hat.detach().numpy(),
+            best_b_hat.detach().numpy(),
             losses,
         )
 
 
-def solve_table(otus, genome_ids, db=RnaDB(), ptrs=None, abundances=None):
+def solve_table(
+    otus, genome_ids, db=RnaDB(), ptrs=None, abundances=None, **kwargs
+):
     """Solve an entire OTUtable"""
 
     # Need extra sanity checks if PTRs and abundances are given
@@ -147,7 +150,10 @@ def solve_table(otus, genome_ids, db=RnaDB(), ptrs=None, abundances=None):
     genomes, _ = db.generate_genome_objects(genome_ids)
     solutions = []
     for i in range(n_samples):
+        # Deal with zero-coverage samples
+        if otus.iloc[:, i].sum() == 0:
+            continue
         solver = TorchSolver(genomes=genomes, coverages=otus.iloc[:, i])
-        a, b, losses = solver.train()
+        a, b, losses = solver.train(**kwargs)
         solutions.append((a, b, losses))
     return solutions

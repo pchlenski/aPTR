@@ -390,7 +390,16 @@ def simulate_from_ids(
     fastq: bool
         If True, geneerates actual fastq reads. Otherwise uses None
     **simulate_args:
-        Arguments for the simulate() function
+        Arguments for the simulate() function:
+            sequences: Dict[str, List[str]],
+            ptrs: np.array = None,
+            coverages: np.array = None,
+            n_samples: int = 10,
+            read_length: int = 300,
+            scale: float = 1e5,
+            verbose: bool = True,
+            shuffle: bool = True,
+            fastq: bool = True,
 
     Returns:
     --------

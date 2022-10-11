@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple
 from .new_filter import filter_db
+import warnings
 
 
 class RnaDB:
@@ -12,6 +13,9 @@ class RnaDB:
         Initialize a DB instance with an appropriately-trimmed DB.
         Passes kwargs to new_filter.filter_db().
         """
+
+        # Suppress SettingWithCopyWarning, which is not our fault here:
+        pd.set_option("mode.chained_assignment", None)
 
         # Get the DB
         if load:
@@ -30,6 +34,9 @@ class RnaDB:
 
         # Set some other useful attributes
         self.genomes = self.db["genome"].unique()
+        self.complete_genomes = self.db[self.db["n_contigs"] == 1][
+            "genome"
+        ].unique()
         self.md5s = self.db["md5"].unique()
 
     def find_genomes_by_md5(self, md5: str) -> List[str]:
