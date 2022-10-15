@@ -94,7 +94,7 @@ class RnaDB:
         # Compute distance
         d1 = np.abs(oor - pos)
         d2 = np.abs(oor + length - pos)
-        return np.minimum(d1, d2) / length
+        return 2 * np.minimum(d1, d2) / length  # 2x so it's in [0, 1]
 
     def generate_genome_objects(
         self, genome_ids: list
@@ -118,6 +118,9 @@ class RnaDB:
         -------
         ValueError: if any genome ID is not in the DB
         """
+        if not isinstance(genome_ids, list):
+            genome_ids = [genome_ids]
+
         out = []
         all_seqs = []
         for genome_id in genome_ids:
@@ -147,8 +150,15 @@ class RnaDB:
 
             # Output dict
             out.append({"id": genome_id, "pos": dist, "seqs": seqs})
+        
+        # Generate genome to seq matrix
+        seqs = out[0]["seqs"]
+        m = len(seqs)
+        k = np.max(seqs) + 1
+        g2s = np.array([np.eye(k)[seq] for seq in seqs])
 
-        return out, all_seqs
+        return out, all_seqs, g2s
+    
 
     def __getitem__(self, key: str) -> pd.DataFrame:
         """Return a subset of the DB corresponding to a genome ID"""

@@ -113,7 +113,7 @@ class TorchSolver(torch.nn.Module):
                 print(f"Epoch {epoch}:\t {loss}")
 
             # Early stopping, per-epoch
-            if best_loss - loss > epsilon:
+            if best_loss > loss:
                 best_loss, best_a_hat, best_b_hat = (
                     loss,
                     self.a_hat.clone(),
