@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 from Bio import SeqIO
+from typing import Iterable, List
 import gzip
 from src.database import RnaDB
 from src.oor_distance import oor_distance
@@ -123,34 +124,37 @@ def _sample_from_system(
 
 def _rc(seq):
     """Reverse complement of a DNA sequence. Assumes lowercase"""
+    seq = seq.lower()
     return seq.translate(str.maketrans("acgt", "tgca"))[::-1]
 
 
-def _generate_fastq_reads(starts, input_path, output_path, read_length=300):
+def _generate_fastq_reads(starts, input_path, output_path=None, length=300):
     # Read sequence
     if input_path.endswith("gz"):
-        with gzip.open(path, "rt") as handle:
+        with gzip.open(input_path, "rt") as handle:
             sequence = SeqIO.parse(handle, "fasta").__next__().seq
     else:
-        sequence = SeqIO.parse(path, "fasta").__next__().seq
+        sequence = SeqIO.parse(input_path, "fasta").__next__().seq
 
     # Add circularity and make lowercase
-    sequence = f"{sequence}{sequence[:read_length]}".lower()
+    sequence = f"{sequence}{sequence[:length]}".lower()
 
     # Put out fastq reads
-    with open(output_path, "w") as handle:
-        for start in starts:
-            read = sequence[start : start + read_length]
-            if np.random.random() < 0.5:
-                read = _rc(read.upper())
-            print(
-                f"@{input_path}:{start}\n{start+read_length}",
-                read,
-                "+",
-                "#" * read_length,
-                sep="\n",
-                file=handle,
-            )
+    reads = []
+    for start in starts:
+        read = sequence[start : start + length]
+        if np.random.rand() < 0.5:
+            read = _rc(read.upper())
+        reads.append(
+            f"@{input_path}:{start}:{start+length}\n{read}\n+\n{'#'*length}"
+        )
+
+    # Write, if output path is provided:
+    if output_path is not None:
+        with open(output_path, "w") as handle:
+            handle.write("\n".join(reads))
+
+    return reads
 
 
 def _generate_otu_table(rna_hits, genome, db=None):
@@ -162,32 +166,39 @@ def _generate_otu_table(rna_hits, genome, db=None):
     return pd.Series(data=rna_hits @ gene_to_seq, index=md5s)
 
 
-def simulate_sample(
+def simulate_samples(
     genome: str,
-    log_ptr: float,
+    log_ptrs: List[float],
     fasta_path: str = None,
     fastq_out_path: str = None,
     db: RnaDB = None,
     multiplier: int = 1,
     read_size: int = 300,
-) -> pd.Series:
-    """Fully simulate a sample. Skips WGS if paths are not given."""
+) -> pd.DataFrame:
+    """Fully simulate n samples for a genome. Skips WGS if paths are not given."""
     if db is None:
         db = RnaDB()
 
-    starts, rna_hits = _sample_from_system(
-        genome=genome,
-        log_ptr=log_ptr,
-        db=db,
-        multiplier=multiplier,
-        read_size=read_size,
-    )
-    if fasta_path is not None and fastq_out_path is not None:
-        _generate_fastq_reads(
-            start=starts,
+    if not isinstance(log_ptrs, Iterable):
+        log_ptrs = [log_ptrs]
+
+    out = []
+    for log_ptr in log_ptrs:
+        log_ptr = float(log_ptr)
+
+        starts, rna_hits = _sample_from_system(
             genome=genome,
-            input_path=fasta_path,
-            output_path=fastq_out_path,
+            log_ptr=log_ptr,
+            db=db,
+            multiplier=multiplier,
+            read_size=read_size,
         )
-    otu_table = _generate_otu_table(rna_hits=rna_hits, genome=genome, db=db)
-    return otu_table
+        if fasta_path is not None and fastq_out_path is not None:
+            _generate_fastq_reads(
+                start=starts,
+                genome=genome,
+                input_path=fasta_path,
+                output_path=fastq_out_path,
+            )
+        out.append(_generate_otu_table(rna_hits=rna_hits, genome=genome, db=db))
+    return pd.DataFrame(out).T

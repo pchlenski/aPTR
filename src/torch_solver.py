@@ -16,6 +16,15 @@ class TorchSolver(torch.nn.Module):
     def set_vals(
         self, genomes, coverages, abundances=None, ptrs=None, normalize=True
     ):
+        # Convert dataframes
+        if isinstance(coverages, pd.DataFrame):
+            coverages = coverages.values
+        if isinstance(abundances, pd.DataFrame):
+            abundances = abundances.values
+        if isinstance(ptrs, pd.DataFrame):
+            ptrs = ptrs.values
+
+        # Reshape vectors to matrices
         if coverages.ndim == 1:
             coverages = coverages.reshape(1, -1)
         if abundances is not None and abundances.ndim == 1:
@@ -26,7 +35,7 @@ class TorchSolver(torch.nn.Module):
         # TODO: handle case where "genomes" is a list of IDs
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
-        self.s = coverages.shape[0]
+        self.s = coverages.shape[1]
         self.n = len(genomes)
         self.m = np.sum([len(genome["pos"]) for genome in genomes])
         self.k = len(self.seqs)
@@ -56,10 +65,6 @@ class TorchSolver(torch.nn.Module):
         if normalize:
             self.coverages /= torch.sum(self.coverages)
 
-        # # Other attributes used during prediction
-        # self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
-        # self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
-
     # def forward(self, a, b) -> torch.Tensor:
     def forward(self, A, B) -> torch.Tensor:
         """
@@ -71,71 +76,74 @@ class TorchSolver(torch.nn.Module):
         """
         C = self.members
         D = self.dists
-        # g = a @ C + 1 - b @ D
-        G = A @ C + 1 - B @ D
+        # G = A @ C + 1 - B @ D
+        # E = self.gene_to_seq
+        # return torch.exp(G) @ E
+        G = C.T @ A.T + 1 - D.T @ B.T
         E = self.gene_to_seq
-        # return torch.exp(g) @ E
-        return torch.exp(G) @ E
+        return E.T @ torch.exp(G)
 
     def train(
         self,
         lr=1e-3,
         epochs: int = 500,
         iterations: int = 1000,
-        epsilon: float = 1e-1,
         tolerance: int = 5,
         loss_fn: Callable = torch.nn.functional.mse_loss,
-        a_hat: torch.Tensor = None,
-        b_hat: torch.Tensor = None,
+        # a_hat: torch.Tensor = None,
+        # b_hat: torch.Tensor = None,
+        A_hat: torch.Tensor = None,
+        B_hat: torch.Tensor = None,
         verbose: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
         # Initialize a_hat and b_hat
-        if a_hat is None:
-            # a_hat = torch.rand(size=(self.n,), requires_grad=True)
-            a_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
-        elif type(a_hat) is np.ndarray:
-            a_hat = a_hat.reshape(self.s, self.n)
-            a_hat = torch.from_numpy(a_hat).float().requires_grad_(True)
-        if b_hat is None:
-            # b_hat = torch.rand(size=(self.n,), requires_grad=True)
-            b_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
-        elif type(b_hat) is np.ndarray:
-            b_hat = b_hat.reshape(self.s, self.n)
-            b_hat = torch.from_numpy(b_hat).float().requires_grad_(True)
-        self.a_hat = a_hat
-        self.b_hat = b_hat
+        if A_hat is None:
+            # a_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
+            A_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
+        elif type(A_hat) is np.ndarray:
+            A_hat = A_hat.reshape(self.s, self.n)
+            A_hat = torch.from_numpy(A_hat).float().requires_grad_(True)
+        if B_hat is None:
+            # b_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
+            B_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
+        elif type(B_hat) is np.ndarray:
+            # b_hat = b_hat.reshape(self.s, self.n)
+            B_hat = B_hat.reshape(self.n, self.s)
+            B_hat = torch.from_numpy(B_hat).float().requires_grad_(True)
+        self.A_hat = A_hat
+        self.B_hat = B_hat
 
         # Initialize optimizer and counters
-        optimizer = torch.optim.Adam([self.a_hat, self.b_hat], lr=lr)
-        best_loss, best_a_hat, best_b_hat = torch.inf, None, None
+        optimizer = torch.optim.Adam([self.A_hat, self.B_hat], lr=lr)
+        best_loss, best_A_hat, best_B_hat = torch.inf, None, None
         early_stop_counter = 0
         losses = []
 
         for epoch in range(epochs):
             for _ in range(iterations):
                 # Updates
-                f_hat = self(self.a_hat, self.b_hat)
-                f_hat = f_hat / torch.sum(f_hat)  # normalize
-                loss = loss_fn(f_hat, self.coverages)
+                F_hat = self(self.A_hat, self.B_hat)
+                F_hat = F_hat / torch.sum(F_hat)  # normalize
+                loss = loss_fn(F_hat, self.coverages)
                 losses.append(loss.item())
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
                 # Ensure reasonable PTR - e is generally enough
-                self.b_hat.data = self.b_hat.clamp(0, 1)
+                self.B_hat.data = self.B_hat.clamp(0, 1)
 
             if verbose:
                 print(f"Epoch {epoch}:\t {loss}")
 
             # Early stopping, per-epoch
             if best_loss > loss:
-                best_loss, best_a_hat, best_b_hat = (
+                best_loss, best_A_hat, best_B_hat = (
                     loss,
-                    self.a_hat.clone(),
-                    self.b_hat.clone(),
+                    self.A_hat.clone(),
+                    self.B_hat.clone(),
                 )
                 early_stop_counter = 0
             else:
@@ -145,7 +153,7 @@ class TorchSolver(torch.nn.Module):
                 break
 
         return (
-            best_a_hat.detach().numpy(),
-            best_b_hat.detach().numpy(),
+            best_A_hat.detach().numpy(),
+            best_B_hat.detach().numpy(),
             losses,
         )
