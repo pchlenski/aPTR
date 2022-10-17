@@ -3,6 +3,8 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple
+
+from src.oor_distance import oor_distance
 from .new_filter import filter_db
 import warnings
 
@@ -55,47 +57,6 @@ class RnaDB:
         """
         return list(self.db[self.db["md5"] == md5]["genome"].unique())
 
-    def get_oor_dist(self, oor: int, pos: int, length: int) -> float:
-        """
-        Given an OOR coordinate, a position, and a length, return distance.
-
-        Args:
-        -----
-        oor: int
-            Locus at which origin of replication is located.
-        pos: int
-            Position for which coverage is being computed.
-        length: int
-            Length of the genome.
-
-        Returns:
-        --------
-        float:
-            Distance from the OOR to the position, normalized to be in [0, 0.5].
-
-        Raises:
-        -------
-        ValueError: if the OOR is not in [0, length]
-        ValueError: if the position is not in [0, length]
-        ValueError: if the length is negative
-        """
-
-        # Input validation
-        oor = float(oor)
-        pos = float(pos)
-        length = float(length)
-        if oor < 0 or oor > length:
-            raise ValueError("OOR must be in [0, length]")
-        if pos < 0 or pos > length:
-            raise ValueError("Position must be in [0, length]")
-        if length < 0:
-            raise ValueError("Length must be positive")
-
-        # Compute distance
-        d1 = np.abs(oor - pos)
-        d2 = np.abs(oor + length - pos)
-        return 2 * np.minimum(d1, d2) / length  # 2x so it's in [0, 1]
-
     def generate_genome_objects(
         self, genome_ids: list
     ) -> Tuple[List[Dict[str, List[int]]], List[str]]:
@@ -138,7 +99,10 @@ class RnaDB:
             # Get distances
             rna_positions = np.array(genome_data["16s_position"], dtype=float)
             dist = np.array(
-                [self.get_oor_dist(oor, pos, size) for pos in rna_positions]
+                [
+                    oor_distance(position=pos, oor=oor, size=size)
+                    for pos in rna_positions
+                ]
             )
 
             # Maintain consistent indexing scheme for sequence MD5s
@@ -150,7 +114,7 @@ class RnaDB:
 
             # Output dict
             out.append({"id": genome_id, "pos": dist, "seqs": seqs})
-        
+
         # Generate genome to seq matrix
         seqs = out[0]["seqs"]
         m = len(seqs)
@@ -158,7 +122,6 @@ class RnaDB:
         g2s = np.array([np.eye(k)[seq] for seq in seqs])
 
         return out, all_seqs, g2s
-    
 
     def __getitem__(self, key: str) -> pd.DataFrame:
         """Return a subset of the DB corresponding to a genome ID"""

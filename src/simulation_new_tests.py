@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
+from src.oor_distance import oor_distance
 from src.simulation_new import (
     _exact_coverage_curve,
-    _oor_dist,
     _exact_coverage_curve_genome,
     _coverage_16s_and_wgs,
     _sample_from_system,
@@ -16,27 +16,29 @@ from src.simulation_new import (
 
 def test_oor_dists():
     # Distance should wrap around, i.e. 1==0:
-    assert np.allclose(_oor_dist(0, 1, 1), 0)
-    assert np.allclose(_oor_dist(0, 0, 1), 0)
+    assert np.allclose(oor_distance(0, 1, 1), 0)
+    assert np.allclose(oor_distance(0, 0, 1), 0)
 
     # Assert symmetry:
     x = np.linspace(0, 1, 100)
-    assert np.allclose(_oor_dist(x[:50], 0, 1), _oor_dist(x[50:], 0, 1)[::-1])
+    assert np.allclose(
+        oor_distance(x[:50], 0, 1), oor_distance(x[50:], 0, 1)[::-1]
+    )
 
     # Symmetry around trough as well:
     assert np.allclose(
-        _oor_dist(x[:50], 0.5, 1), _oor_dist(x[50:], 0.5, 1)[::-1]
+        oor_distance(x[:50], 0.5, 1), oor_distance(x[50:], 0.5, 1)[::-1]
     )
 
     # Test custom size and loc - random example I'm confident about:
     input_arr = [0, 2, 4, 20]
     input_oor = 3
     input_size = 100
-    output_dists = _oor_dist(input_arr, input_oor, input_size)
+    output_dists = oor_distance(input_arr, input_oor, input_size)
     assert np.allclose(output_dists, [0.06, 0.02, 0.02, 0.34])
 
     # Test with/without normalization:
-    output_dists_nonnorm = _oor_dist(
+    output_dists_nonnorm = oor_distance(
         input_arr, input_oor, input_size, normalized=False
     )
     # Don't forget to scale by 2

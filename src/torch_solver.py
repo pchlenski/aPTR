@@ -3,6 +3,7 @@
 # import numpy as np
 import torch
 import numpy as np
+import pandas as pd
 from typing import List, Dict, Tuple, Callable
 from .database import RnaDB
 
@@ -15,9 +16,17 @@ class TorchSolver(torch.nn.Module):
     def set_vals(
         self, genomes, coverages, abundances=None, ptrs=None, normalize=True
     ):
+        if coverages.ndim == 1:
+            coverages = coverages.reshape(1, -1)
+        if abundances is not None and abundances.ndim == 1:
+            abundances = abundances.reshape(1, -1)
+        if ptrs is not None and ptrs.ndim == 1:
+            ptrs = ptrs.reshape(1, -1)
+
         # TODO: handle case where "genomes" is a list of IDs
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
+        self.s = coverages.shape[0]
         self.n = len(genomes)
         self.m = np.sum([len(genome["pos"]) for genome in genomes])
         self.k = len(self.seqs)
@@ -29,11 +38,12 @@ class TorchSolver(torch.nn.Module):
         i = 0
 
         for g, genome in enumerate(genomes):
-            j = i + len(genome["pos"])
+            pos = genome["pos"].flatten()
+            j = i + len(pos)
 
             # Put indicator, position in correct row (g)
             self.members[g, i:j] = 1
-            self.dists[g, i:j] = torch.tensor(genome["pos"])
+            self.dists[g, i:j] = torch.tensor(pos)
 
             # Keep track of sequences
             for s, seq in enumerate(genome["seqs"]):
@@ -42,6 +52,7 @@ class TorchSolver(torch.nn.Module):
 
         # Compute coverages, etc
         self.coverages = torch.tensor(coverages, dtype=torch.float32)
+        self.coverages = torch.nan_to_num(self.coverages, nan=0)
         if normalize:
             self.coverages /= torch.sum(self.coverages)
 
@@ -49,7 +60,8 @@ class TorchSolver(torch.nn.Module):
         # self.a_hat = torch.rand(size=(self.n,), requires_grad=True)
         # self.b_hat = torch.rand(size=(self.n,), requires_grad=True)
 
-    def forward(self, a, b) -> torch.Tensor:
+    # def forward(self, a, b) -> torch.Tensor:
+    def forward(self, A, B) -> torch.Tensor:
         """
         Compute convolved coverage vector (= observed coverages)
 
@@ -59,9 +71,11 @@ class TorchSolver(torch.nn.Module):
         """
         C = self.members
         D = self.dists
-        g = a @ C + 1 - b @ D
+        # g = a @ C + 1 - b @ D
+        G = A @ C + 1 - B @ D
         E = self.gene_to_seq
-        return torch.exp(g) @ E
+        # return torch.exp(g) @ E
+        return torch.exp(G) @ E
 
     def train(
         self,
@@ -79,12 +93,16 @@ class TorchSolver(torch.nn.Module):
 
         # Initialize a_hat and b_hat
         if a_hat is None:
-            a_hat = torch.rand(size=(self.n,), requires_grad=True)
+            # a_hat = torch.rand(size=(self.n,), requires_grad=True)
+            a_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
         elif type(a_hat) is np.ndarray:
+            a_hat = a_hat.reshape(self.s, self.n)
             a_hat = torch.from_numpy(a_hat).float().requires_grad_(True)
         if b_hat is None:
-            b_hat = torch.rand(size=(self.n,), requires_grad=True)
+            # b_hat = torch.rand(size=(self.n,), requires_grad=True)
+            b_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
         elif type(b_hat) is np.ndarray:
+            b_hat = b_hat.reshape(self.s, self.n)
             b_hat = torch.from_numpy(b_hat).float().requires_grad_(True)
         self.a_hat = a_hat
         self.b_hat = b_hat
@@ -131,31 +149,3 @@ class TorchSolver(torch.nn.Module):
             best_b_hat.detach().numpy(),
             losses,
         )
-
-
-def solve_table(
-    otus, genome_ids, db=None, ptrs=None, abundances=None, **kwargs
-):
-    """Solve an entire OTUtable"""
-    if db is None:
-        db = RnaDB()
-
-    # Need extra sanity checks if PTRs and abundances are given
-    if abundances is not None and ptrs is not None:
-        if abundances.shape != ptrs.shape:
-            raise Exception("abundances should have same shape as ptrs")
-        if abundances.shape[1] != otus.shape[1]:
-            raise Exception("number of samples is mismatched")
-
-    # Initialize solver system
-    n_samples = otus.shape[1]
-    genomes, _ = db.generate_genome_objects(genome_ids)
-    solutions = []
-    for i in range(n_samples):
-        # Deal with zero-coverage samples
-        if otus.iloc[:, i].sum() == 0:
-            continue
-        solver = TorchSolver(genomes=genomes, coverages=otus.iloc[:, i])
-        a, b, losses = solver.train(**kwargs)
-        solutions.append((a, b, losses))
-    return solutions
