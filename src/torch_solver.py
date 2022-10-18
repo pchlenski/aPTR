@@ -41,9 +41,9 @@ class TorchSolver(torch.nn.Module):
         self.k = len(self.seqs)
 
         # Compute membership(C), distance (D) and gene_to_seq (E) matrices
-        self.members = torch.zeros(size=(self.n, self.m))
-        self.dists = torch.zeros(size=(self.n, self.m))
-        self.gene_to_seq = torch.zeros(size=(self.m, self.k))
+        self.members = torch.zeros(size=(self.m, self.n))
+        self.dists = torch.zeros(size=(self.m, self.n))
+        self.gene_to_seq = torch.zeros(size=(self.k, self.m))
         i = 0
 
         for g, genome in enumerate(genomes):
@@ -51,12 +51,12 @@ class TorchSolver(torch.nn.Module):
             j = i + len(pos)
 
             # Put indicator, position in correct row (g)
-            self.members[g, i:j] = 1
-            self.dists[g, i:j] = torch.tensor(pos)
+            self.members[i:j, g] = 1
+            self.dists[i:j, g] = torch.tensor(pos)
 
             # Keep track of sequences
             for s, seq in enumerate(genome["seqs"]):
-                self.gene_to_seq[i + s, seq] = 1
+                self.gene_to_seq[seq, i + s] = 1
             i = j
 
         # Compute coverages, etc
@@ -71,17 +71,14 @@ class TorchSolver(torch.nn.Module):
         Compute convolved coverage vector (= observed coverages)
 
         Assumes the following:
-        a = log-abundance
-        b = log-ptr
+        A = log-abundance
+        B = log-ptr
         """
         C = self.members
         D = self.dists
-        # G = A @ C + 1 - B @ D
-        # E = self.gene_to_seq
-        # return torch.exp(G) @ E
-        G = C.T @ A.T + 1 - D.T @ B.T
+        G = C @ A + 1 - D @ B
         E = self.gene_to_seq
-        return E.T @ torch.exp(G)
+        return E @ torch.exp(G)
 
     def train(
         self,
@@ -90,8 +87,6 @@ class TorchSolver(torch.nn.Module):
         iterations: int = 1000,
         tolerance: int = 5,
         loss_fn: Callable = torch.nn.functional.mse_loss,
-        # a_hat: torch.Tensor = None,
-        # b_hat: torch.Tensor = None,
         A_hat: torch.Tensor = None,
         B_hat: torch.Tensor = None,
         verbose: bool = True,

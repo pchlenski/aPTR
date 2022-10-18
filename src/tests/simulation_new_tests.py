@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from ..database import RnaDB
@@ -12,6 +13,7 @@ from ..simulation_new import (
     _generate_fastq_reads,
     _generate_otu_table,
     simulate_samples,
+    make_tables,
 )
 
 
@@ -234,7 +236,13 @@ def test_simulate_samples():
 
     # Case with a signle log_ptr
     np.random.seed(42)
-    otus = simulate_samples(genome="903510.3", log_ptrs=np.log(1.5), db=db)
+    otus = simulate_samples(
+        abundances=pd.DataFrame(index=["903510.3"], columns=[0], data=[1]),
+        log_ptrs=pd.DataFrame(
+            index=["903510.3"], columns=[0], data=np.log(1.5)
+        ),
+        db=db,
+    )
     assert otus.shape == (6, 1)
     assert np.allclose(otus[0], [790, 1521, 754, 786, 771, 567])
     assert list(otus.index) == [
@@ -249,10 +257,65 @@ def test_simulate_samples():
     # Case with multiple log_ptrs
     np.random.seed(42)
     otus2 = simulate_samples(
-        genome="903510.3", log_ptrs=np.log([1.5, 1.6, 1]), db=db
+        abundances=pd.DataFrame(
+            index=["903510.3"], columns=[0, 1, 2], data=[[1, 1, 1]]
+        ),
+        log_ptrs=pd.DataFrame(
+            index=["903510.3"], columns=[0, 1, 2], data=np.log([[1.5, 2, 1]])
+        ),
+        db=db,
     )
-    print(otus2)
     assert otus2.shape == (6, 3)
     assert list(otus2.columns) == [0, 1, 2]
+
+    # Verify additivity when collisions occur:
+    # All of these have sequence ID b210ca58a655601b2d2084be12c81482
+    np.random.seed(42)
+    genomes = ["592022.4", "1348623.7", "545693.3"]
+    otus3 = simulate_samples(
+        abundances=pd.DataFrame(
+            index=genomes, columns=[0], data=np.ones((3, 1))
+        ),
+        log_ptrs=pd.DataFrame(
+            index=genomes, columns=[0], data=np.zeros((3, 1))
+        ),
+        db=db,
+    )
+    assert np.allclose(
+        otus3[0],
+        [7207, 4098, 1665, 810, 859, 775, 1658, 2428, 848]
+        + [813, 767, 775, 804, 849, 841, 810, 774, 788, 806]
+        # I broke this up a bit for readability
+    )
+
+    return True
+
+
+def test_make_tables():
+    db = RnaDB(
+        path_to_dnaA="./data/allDnaA.tsv",
+        path_to_16s="./data/allSSU.tsv",
+    )  # Assumes you run script from "aptr" top-level directory
+    np.random.seed(42)
+    abundances, log_ptrs, otus = make_tables(n_genomes=10, n_samples=5, db=db)
+
+    # Shape verification
+    assert abundances.shape == (10, 5)
+    assert log_ptrs.shape == (10, 5)
+    assert otus.shape == (31, 5)  # Number of samples
+
+    # Verify index identity:
+    assert list(abundances.index) == list(log_ptrs.index)
+    assert (
+        list(abundances.columns) == list(log_ptrs.columns) == list(otus.columns)
+    )
+
+    # MD5 there <=> genome there
+    genomes_superset = db.find_genomes_by_md5(otus.index)
+    for genome in abundances.index:
+        # Very genome there => MD5 there:
+        assert genome in genomes_superset
+        # Verify MD5 there => genome there
+        assert set(db[genome]["md5"]) - set(otus.index) == set()
 
     return True

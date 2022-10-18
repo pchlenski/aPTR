@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 from Bio import SeqIO
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 import gzip
 from src.database import RnaDB
 from src.oor_distance import oor_distance
@@ -92,6 +92,7 @@ def _sample_from_system(
     db=None,
 ):
     """Given predicted 16S use RNRPM and WGS use RP, sample from that system"""
+
     if db is None:
         db = RnaDB()
 
@@ -109,8 +110,13 @@ def _sample_from_system(
             genome=genome, log_ptr=log_ptr, db=db
         )
 
+    # We know what happens if coverage is 0: no hits
+    if multiplier == 0:
+        return np.zeros_like(wgs_probs), np.zeros_like(rna_positions)
+
     # Sample WGS reads using Poisson distribution
-    read_starts = np.random.poisson(lam=wgs_probs * multiplier)
+    lam = wgs_probs * multiplier
+    read_starts = np.random.poisson(lam=lam)
 
     # Figure out which hits overlap 16S RNAs:
     genome_size = len(wgs_probs)
@@ -167,38 +173,73 @@ def _generate_otu_table(rna_hits, genome, db=None):
 
 
 def simulate_samples(
-    genome: str,
-    log_ptrs: List[float],
-    fasta_path: str = None,
+    abundances: pd.DataFrame,
+    log_ptrs: pd.DataFrame,
+    fasta_dir: str = None,
+    fasta_ext: str = ".fna.gz",
     fastq_out_path: str = None,
     db: RnaDB = None,
-    multiplier: int = 1,
     read_size: int = 300,
 ) -> pd.DataFrame:
     """Fully simulate n samples for a genome. Skips WGS if paths are not given."""
     if db is None:
         db = RnaDB()
 
-    if not isinstance(log_ptrs, Iterable):
-        log_ptrs = [log_ptrs]
+    # Ensure index and columns match for abundances and log_ptrs
+    abundances = abundances.reindex(
+        index=log_ptrs.index, columns=log_ptrs.columns
+    )
+    abundances = abundances.fillna(0)
 
     out = []
-    for log_ptr in log_ptrs:
-        log_ptr = float(log_ptr)
+    for sample in log_ptrs.columns:
+        sample_out = []
+        for genome in log_ptrs.index:
+            log_ptr = float(log_ptrs.loc[genome, sample])
 
-        starts, rna_hits = _sample_from_system(
-            genome=genome,
-            log_ptr=log_ptr,
-            db=db,
-            multiplier=multiplier,
-            read_size=read_size,
-        )
-        if fasta_path is not None and fastq_out_path is not None:
-            _generate_fastq_reads(
-                start=starts,
+            starts, rna_hits = _sample_from_system(
                 genome=genome,
-                input_path=fasta_path,
-                output_path=fastq_out_path,
+                log_ptr=log_ptr,
+                db=db,
+                read_size=read_size,
+                multiplier=abundances.loc[genome, sample],
             )
-        out.append(_generate_otu_table(rna_hits=rna_hits, genome=genome, db=db))
+            if fasta_dir is not None and fastq_out_path is not None:
+                _generate_fastq_reads(
+                    start=starts,
+                    genome=genome,
+                    input_path=f"{fasta_path}/{genome}{fasta_ext}",
+                    output_path=fastq_out_path,
+                )
+            sample_out.append(
+                _generate_otu_table(rna_hits=rna_hits, genome=genome, db=db)
+            )
+        out.append(pd.DataFrame(sample_out).sum(axis=0))
     return pd.DataFrame(out).T
+
+
+def make_tables(
+    n_genomes=10, n_samples=20, db=None, sparsity=0.5
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Convenience function to quickly generate OTU tables with ground truth."""
+
+    if db is None:
+        db = RnaDB()
+
+    genomes = np.random.choice(db.complete_genomes, n_genomes, replace=False)
+    samples = list(range(n_samples))
+
+    log_ptrs = pd.DataFrame(index=genomes, columns=samples)
+    abundances = pd.DataFrame(index=genomes, columns=samples)
+
+    for sample in samples:
+        for genome in genomes:
+            if np.random.rand() < sparsity:
+                log_ptrs.loc[genome, sample] = np.random.rand()
+                abundances.loc[genome, sample] = np.random.lognormal(0)
+            else:
+                log_ptrs.loc[genome, sample] = np.nan
+                abundances.loc[genome, sample] = 0
+
+    otus = simulate_samples(abundances=abundances, log_ptrs=log_ptrs, db=db)
+    return abundances, log_ptrs, otus

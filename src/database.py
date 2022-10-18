@@ -41,7 +41,7 @@ class RnaDB:
         ].unique()
         self.md5s = self.db["md5"].unique()
 
-    def find_genomes_by_md5(self, md5: str) -> List[str]:
+    def find_genomes_by_md5(self, md5s: List[str]) -> List[str]:
         """
         Given an md5-hashed seq, return all genome IDs with that sequence
 
@@ -55,7 +55,7 @@ class RnaDB:
         list:
             All genomes IDs matching the given md5 hash.
         """
-        return list(self.db[self.db["md5"] == md5]["genome"].unique())
+        return list(self.db[self.db["md5"].isin(md5s)]["genome"].unique())
 
     def generate_genome_objects(
         self, genome_ids: list

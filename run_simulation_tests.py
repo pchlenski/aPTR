@@ -9,4 +9,5 @@ if __name__ == "__main__":
     assert test_rc()
     assert test_generate_fastq_reads()
     assert test_generate_otu_table()
-    assert test_simulate_sample()
+    assert test_simulate_samples()
+    assert test_make_tables()
