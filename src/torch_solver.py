@@ -95,16 +95,13 @@ class TorchSolver(torch.nn.Module):
 
         # Initialize a_hat and b_hat
         if A_hat is None:
-            # a_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
             A_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
         elif type(A_hat) is np.ndarray:
             A_hat = A_hat.reshape(self.s, self.n)
             A_hat = torch.from_numpy(A_hat).float().requires_grad_(True)
         if B_hat is None:
-            # b_hat = torch.zeros(size=(self.s, self.n), requires_grad=True)
             B_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
         elif type(B_hat) is np.ndarray:
-            # b_hat = b_hat.reshape(self.s, self.n)
             B_hat = B_hat.reshape(self.n, self.s)
             B_hat = torch.from_numpy(B_hat).float().requires_grad_(True)
         self.A_hat = A_hat
