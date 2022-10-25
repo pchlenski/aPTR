@@ -6,11 +6,10 @@ import os
 import uuid
 import argparse
 import pandas as pd
+import pickle
 from src.preprocess_samples import preprocess_samples
-from src.new_filter import filter_db, save_as_vsearch_db
-
-# from src.solve_table import solve_all, score_predictions
-# from src.torch_solver import solve_table
+from src.database import RnaDB
+from src.new_filter import save_as_vsearch_db
 from src.torch_solver import TorchSolver
 
 
@@ -39,7 +38,7 @@ def get_args():
     parser.add_argument(
         "--db_path",
         type=str,
-        help="Path to an RnaDB object. Skips database generation.",
+        help="Path to a pickled RnaDB object. Skips database generation.",
     )
     parser.add_argument(
         "--otu_path",
@@ -60,15 +59,16 @@ def run_aptr():
     outdir = f"{args.path}/aptr_{uuid.uuid4()}"
 
     if args.db_path:
-        db_path = args.db_path
+        db_pickle_path = args.db_path
+        db = pickle.load(open(db_pickle_path, "rb"))
     else:
-        db = filter_db(
+        db = RnaDB(
             path_to_dnaA="./data/allDnaA.tsv",
             path_to_16s="./data/allSSU.tsv",
             left_primer=args.adapter1,
             right_primer=args.adapter2,
         )
-        db_path = f"{outdir}/db.pkl"
+        db_pickle_path = f"{outdir}/db.pkl"
         db_fasta_path = f"{outdir}/db.fasta"
         try:
             os.mkdir(outdir)
@@ -77,8 +77,8 @@ def run_aptr():
         print(f"Output directory UUID: {outdir}")
 
         # Save a reduced database with adapters cut
-        save_as_vsearch_db(db, output_file_path=db_fasta_path)
-        db.to_pickle(f"{outdir}/db.pkl")
+        save_as_vsearch_db(db.db, output_file_path=db_fasta_path)
+        pickle.dump(db, open(f"{outdir}/db.pkl", "wb"))
 
     # All the preprocessing takes place here
     if args.otu_path:
@@ -88,37 +88,32 @@ def run_aptr():
             path=args.path,
             adapter1=args.adapter1,
             adapter2=args.adapter2,
-            db_path=db_path,
+            db_path=db_fasta_path,
             outdir=outdir,
         )
         otu_path = f"{outdir}/filtered/otu_table.tsv"
 
     # Infer PTRs
-    otus = pd.read_table(otu_path)
-    solver = TorchSolver(
-        genomes=db.generate_genome_objects()[0],
+    otus = pd.read_table(otu_path, index_col=0)
+    solver = TorchSolver(md5s=otus.index, otus=otus, db=db)
+
+    solver.train(lr=0.1, tolerance=1e-6)
+    inferred_ptrs = pd.DataFrame(
+        data=solver.B_hat.exp().detach().numpy(),
+        index=solver.genome_ids,
+        columns=solver.sample_ids,
     )
-    solutions = solve_table(otus=otus, db=db)
-    inferred_ptrs = solutions.pivot("genome", "sample", "ptr")
-    inferred_abundances = solutions.pivot("genome", "sample", "abundance")
+    inferred_abundances = pd.DataFrame(
+        data=solver.A_hat.exp().detach().numpy(),
+        index=solver.genome_ids,
+        columns=solver.sample_ids,
+    )
 
     # Save inferred quantities
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
     inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
 
-    # Score PTRs
-    ptr_scores = score_predictions(
-        predictions=inferred_ptrs,
-        true_values=pd.read_table(f"{args.path}/ptrs.tsv", index_col=0),
-    )
-    print(ptr_scores, file=open(f"{outdir}/ptr_scores.txt", "w"))
-
-    # Score abundances
-    abundance_scores = score_predictions(
-        predictions=inferred_abundances,
-        true_values=pd.read_table(f"{args.path}/coverages.tsv", index_col=0),
-    )
-    print(abundance_scores, file=open(f"{outdir}/abundance_scores.txt", "w"))
+    # Score PTRs: TODO
 
     # Cleanup intermediate files
     for subdir in ["trimmed", "merged", "stats", "filtered", "derep"]:

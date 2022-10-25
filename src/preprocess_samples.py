@@ -222,7 +222,7 @@ def preprocess_samples(
     path: str,
     adapter1: str,
     adapter2: str,
-    db_path: str,
+    db_fasta_path: str,
     outdir: str,
     verbose: bool = True,
     log: bool = True,
@@ -240,8 +240,8 @@ def preprocess_samples(
     adapter2: str
         Adapter sequence for the 5' end of the reads. Equivalent to the CUTADAPT
         -G/-g option.
-    db_path: str
-        Path to an RnaDB object.
+    db_fasta_path: str
+        Path to a FASTA file of 16S sequences to search against.
     outdir: str
         Path to directory where the output files will be written.
     verbose: bool
@@ -336,7 +336,7 @@ def preprocess_samples(
         f"{outdir}/all.fasta",
         f"--threads {_N_THREADS}",
         f"--id 1.0",
-        f"--db {db_path}",
+        f"--db {db_fasta_path}",
         f"--otutabout {outdir}/otu_table.tsv",
         **exec_args,
     )

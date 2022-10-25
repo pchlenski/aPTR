@@ -134,13 +134,16 @@ class RnaDB:
 
     def __getitem__(self, key: str) -> pd.DataFrame:
         """Return a subset of the DB corresponding to a genome ID"""
-        if isinstance(key, list) and np.all([x in self.genomes for x in key]):
-            return self.db[self.db["genome"].isin(key)]
-        elif isinstance(key, list) and np.all([x in self.md5s for x in key]):
-            return self.db[self.db["md5"].isin(key)]
-        elif key in self.genomes:
-            return self.db[self.db["genome"] == key]
-        elif key in self.md5s:
-            return self.db[self.db["md5"] == key]
+        if isinstance(key, str):
+            if key in self.genomes:
+                return self.db[self.db["genome"] == key]
+            elif key in self.md5s:
+                return self.db[self.db["md5"] == key]
         else:
-            raise ValueError(f"No match in DB for {key}")
+            key = list(key)
+            if np.any([x in self.genomes for x in key]):
+                return self.db[self.db["genome"].isin(key)]
+            elif np.any([x in self.md5s for x in key]):
+                return self.db[self.db["md5"].isin(key)]
+
+        raise ValueError(f"No match in DB for {key}")

@@ -15,58 +15,62 @@ class TorchSolver(torch.nn.Module):
 
     def set_vals(
         self,
-        coverages,
-        genomes=None,
-        md5s=None,
-        abundances=None,
-        ptrs=None,
-        normalize=True,
-        db=None,
+        otus: pd.DataFrame,
+        genome_ids: List[str] = None,
+        md5s: List[str] = None,
+        abundances: pd.DataFrame = None,
+        ptrs: pd.DataFrame = None,
+        normalize: bool = True,
+        db: RnaDB = None,
     ):
-        # Convert dataframes
-        if isinstance(coverages, pd.DataFrame):
-            coverages = coverages.values
-        if isinstance(abundances, pd.DataFrame):
-            abundances = abundances.values
-        if isinstance(ptrs, pd.DataFrame):
-            ptrs = ptrs.values
-
-        # Reshape vectors to matrices
-        if coverages.ndim == 1:
-            coverages = coverages.reshape(1, -1)
-        if abundances is not None and abundances.ndim == 1:
-            abundances = abundances.reshape(1, -1)
-        if ptrs is not None and ptrs.ndim == 1:
-            ptrs = ptrs.reshape(1, -1)
+        if db is None:
+            db = RnaDB()
 
         # Get genomes by md5s if not provided
-        if genomes is None and md5s is not None:
-            genomes = db.find_genomes_by_md5(md5s)
-        elif genomes is None and md5s is None:
-            raise ValueError("Must provide either genomes or md5s")
+        if genome_ids is None:
+            if md5s is None:
+                print("Using OTU index for md5s")
+                md5s = list(otus.index)
+
+            genome_candidates = db.find_genomes_by_md5(md5s)
+            genome_ids = genome_candidates
+            # genomes = []
+            # # Verify genome md5s are a subset of provided md5s
+            # for genome in genome_candidates:
+            #     genome_md5s = db[genome]["md5"].unique()
+            #     if all([md5 in md5s for md5 in genome_md5s]):
+            #         genomes.append(genome)
 
         # In case genomes is a list of IDs:
-        if np.all([isinstance(g, str) for g in genomes]):
-            if db is not None:
-                genomes = [db.get_genome_objects(genomes)[0] for g in genomes]
-            else:
-                raise ValueError("Must provide database if passing genome IDs")
+        # Overwrites MD5s
+        genome_objects, md5s, gene_to_seq = db.generate_genome_objects(
+            genome_ids
+        )
+
+        if len(genome_ids) == 0:
+            raise ValueError("No genomes found")
 
         # Set a bunch of attribute values for use later
-        self.genomes = genomes
-        self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
-        self.s = coverages.shape[1]
-        self.n = len(genomes)
-        self.m = np.sum([len(genome["pos"]) for genome in genomes])
-        self.k = len(self.seqs)
+        self.db = db
+        self.genome_ids = genome_ids
+        self.sample_ids = list(otus.columns)
+        self.genome_objects = genome_objects
+        self.md5s = md5s
+        # self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
+        self.s = otus.shape[1]
+        self.n = len(genome_ids)
+        self.m = np.sum([len(g["pos"]) for g in genome_objects])
+        # self.k = len(self.seqs)
+        self.k = len(md5s)
 
         # Compute membership(C), distance (D) and gene_to_seq (E) matrices
         self.members = torch.zeros(size=(self.m, self.n))
         self.dists = torch.zeros(size=(self.m, self.n))
-        self.gene_to_seq = torch.zeros(size=(self.k, self.m))
+        # self.gene_to_seq = torch.zeros(size=(self.k, self.m))
+        self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
         i = 0
 
-        for g, genome in enumerate(genomes):
+        for g, genome in enumerate(genome_objects):
             pos = genome["pos"].flatten()
             j = i + len(pos)
 
@@ -75,17 +79,20 @@ class TorchSolver(torch.nn.Module):
             self.dists[i:j, g] = torch.tensor(pos)
 
             # Keep track of sequences
-            for s, seq in enumerate(genome["seqs"]):
-                self.gene_to_seq[seq, i + s] = 1
+            # for s, seq in enumerate(genome["seqs"]):
+            #     self.gene_to_seq[seq, i + s] = 1
             i = j
 
         # Compute coverages, etc
-        self.coverages = torch.tensor(coverages, dtype=torch.float32)
+        otus = otus.reindex(self.md5s)
+        self.coverages = torch.tensor(otus.values, dtype=torch.float32)
         self.coverages = torch.nan_to_num(self.coverages, nan=0)
         if normalize:
-            self.coverages /= torch.sum(self.coverages)
+            self.coverages /= torch.sum(self.coverages, axis=0, keepdim=True)
 
-    # def forward(self, a, b) -> torch.Tensor:
+        self.abundances = abundances
+        self.ptrs = ptrs
+
     def forward(self, A, B) -> torch.Tensor:
         """
         Compute convolved coverage vector (= observed coverages)
@@ -110,6 +117,7 @@ class TorchSolver(torch.nn.Module):
         A_hat: torch.Tensor = None,
         B_hat: torch.Tensor = None,
         verbose: bool = True,
+        clip: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
@@ -145,7 +153,8 @@ class TorchSolver(torch.nn.Module):
                 optimizer.step()
 
                 # Ensure reasonable PTR - e is generally enough
-                self.B_hat.data = self.B_hat.clamp(0, 1)
+                if clip:
+                    self.B_hat.data = self.B_hat.clamp(0, 1)
 
             if verbose:
                 print(f"Epoch {epoch}:\t {loss}")

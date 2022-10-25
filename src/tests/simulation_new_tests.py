@@ -244,7 +244,6 @@ def test_simulate_samples():
 
     # Case with a signle log_ptr
     np.random.seed(42)
-    print("We are here")
     otus = simulate_samples(
         abundances=pd.DataFrame(index=["903510.3"], columns=[0], data=[1]),
         log_ptrs=pd.DataFrame(
