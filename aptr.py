@@ -8,6 +8,7 @@ import argparse
 import pandas as pd
 from src.preprocess_samples import preprocess_samples
 from src.new_filter import filter_db, save_as_vsearch_db
+
 # from src.solve_table import solve_all, score_predictions
 # from src.torch_solver import solve_table
 from src.torch_solver import TorchSolver
