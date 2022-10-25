@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import Iterable, List, Dict, Tuple
 
 from src.oor_distance import oor_distance
 from .new_filter import filter_db
@@ -79,11 +79,13 @@ class RnaDB:
         -------
         ValueError: if any genome ID is not in the DB
         """
-        if not isinstance(genome_ids, list):
+
+        if isinstance(genome_ids, str):
             genome_ids = [genome_ids]
 
         out = []
         all_seqs = []
+
         for genome_id in genome_ids:
             if genome_id not in self.genomes:
                 raise ValueError(f"No match in DB for {genome_id}")
@@ -104,6 +106,7 @@ class RnaDB:
                     for pos in rna_positions
                 ]
             )
+            # TODO: try to do this with np.apply_along_axis
 
             # Maintain consistent indexing scheme for sequence MD5s
             seqs = []
@@ -115,11 +118,12 @@ class RnaDB:
             # Output dict
             out.append({"id": genome_id, "pos": dist, "seqs": seqs})
 
-        # Generate genome to seq matrix
-        seqs = out[0]["seqs"]
-        m = len(seqs)
-        k = np.max(seqs) + 1
-        g2s = np.array([np.eye(k)[seq] for seq in seqs])
+        # Generate genome-to-seq matrix
+        k = len(all_seqs)
+        g2s = np.array([np.eye(k)[seq] for g in out for seq in g["seqs"]])
+        # This horrible list comprension does the following:
+        # For each genome, create a one-hot vector showing how that sequence
+        # maps to the overall OTU table, then stacks them together.
 
         return out, all_seqs, g2s
 

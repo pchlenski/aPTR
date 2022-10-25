@@ -12,13 +12,30 @@ from src.oor_distance import oor_distance
 def _exact_coverage_curve(
     log_ptr, distances=None, oor=None, locations=None, size=1
 ):
-    # Some Respect constraints on distances:
+    # Coercion:
+    if distances is not None:
+        distances = np.array(distances)
+    if locations is not None:
+        locations = np.array(locations)
+    if log_ptr is not None:
+        log_ptr = np.array(log_ptr)
+
+    if distances is not None and distances.ndim == 1:
+        distances = distances[:, None]
+    if locations is not None and locations.ndim == 1:
+        locations = locations[:, None]
+    if oor is not None and isinstance(oor, (int, float)):
+        oor = np.array([oor])
+    if size is not None and isinstance(size, (int, float)):
+        size = np.array([size])
+
+    # Respect constraints on distances:
     if distances is None:
         # Can infer distances from OOR and locations
         if locations is not None and oor is not None:
-            if np.max(locations) > size or oor > size:
+            if (np.max(locations) > size).any() or (oor > size).any():
                 raise ValueError("Size must be larger than locations and oor")
-            if np.min(locations) < 0 or oor < 0:
+            if (np.min(locations) < 0).any() or (oor < 0).any():
                 raise ValueError("Location and oor can not be < 0")
             oor_distances = oor_distance(locations, oor, size)
         else:
@@ -27,20 +44,21 @@ def _exact_coverage_curve(
     # Enforce normalization
     elif np.max(distances) > 1 or np.min(distances) < 0:
         raise ValueError("OOR distances must be normalized.")
+
     else:
-        oor_distances = distances
+        oor_distances = np.array(distances)
 
     return np.exp(1 - log_ptr * oor_distances)
 
 
-def _exact_coverage_curve_genome(genome, log_ptr, db=None, wgs=False):
+def _exact_coverage_curve_genome(genome, log_ptr, db=None):
     """Given a genome ID and a log-PTR, generate coverages at 16S positions"""
     if db is None:
         db = RnaDB()
 
     # Input validation
     genome = str(genome)
-    log_ptr = float(log_ptr)
+    log_ptr = np.array(log_ptr)
     if not isinstance(db, RnaDB):
         raise TypeError("db must be an RnaDB")
 
@@ -62,7 +80,7 @@ def _coverage_16s_and_wgs(genome, log_ptr, db=None):
 
     # Input validation
     genome = str(genome)
-    log_ptr = float(log_ptr)
+    log_ptr = np.array(log_ptr)
     if not isinstance(db, RnaDB):
         raise TypeError("db must be an RnaDB")
 
@@ -96,6 +114,8 @@ def _sample_from_system(
     if db is None:
         db = RnaDB()
 
+    log_ptr = np.array(log_ptr).flatten()
+
     # Input validation
     if (genome is None or log_ptr is None) and (
         rna_positions is None or wgs_probs is None
@@ -121,9 +141,12 @@ def _sample_from_system(
     # Figure out which hits overlap 16S RNAs:
     genome_size = len(wgs_probs)
     rna_indices = (rna_positions * genome_size).astype(int)
-    rna_hits = np.zeros_like(rna_indices)
+    rna_hits = np.zeros(shape=(len(rna_indices), len(log_ptr)))
+
     for i, rna_index in enumerate(rna_indices):
-        rna_hits[i] = read_starts[rna_index : rna_index + read_size].sum()
+        rna_hits[i, :] = read_starts[rna_index : rna_index + read_size].sum(
+            axis=0
+        )
 
     return read_starts, rna_hits
 
@@ -167,6 +190,8 @@ def _generate_otu_table(rna_hits, genome, db=None):
     """Generate OTU table form an array of 16S hits and a genome ID"""
     if db is None:
         db = RnaDB()
+
+    rna_hits = np.array(rna_hits).flatten()
 
     _, md5s, gene_to_seq = db.generate_genome_objects(genome)
     return pd.Series(data=rna_hits @ gene_to_seq, index=md5s)

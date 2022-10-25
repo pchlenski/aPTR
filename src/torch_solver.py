@@ -14,7 +14,13 @@ class TorchSolver(torch.nn.Module):
         self.set_vals(**kwargs)
 
     def set_vals(
-        self, genomes, coverages, abundances=None, ptrs=None, normalize=True
+        self,
+        genomes,
+        coverages,
+        abundances=None,
+        ptrs=None,
+        normalize=True,
+        db=None,
     ):
         # Convert dataframes
         if isinstance(coverages, pd.DataFrame):
@@ -32,7 +38,14 @@ class TorchSolver(torch.nn.Module):
         if ptrs is not None and ptrs.ndim == 1:
             ptrs = ptrs.reshape(1, -1)
 
-        # TODO: handle case where "genomes" is a list of IDs
+        # In case genomes is a list of IDs:
+        if np.all([isinstance(g, str) for g in genomes]):
+            if db is not None:
+                genomes = [db.get_genome_objects(genomes)[0] for g in genomes]
+            else:
+                raise ValueError("Must provide database if passing genome IDs")
+
+        # Set a bunch of attribute values for use later
         self.genomes = genomes
         self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
         self.s = coverages.shape[1]

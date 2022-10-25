@@ -8,8 +8,9 @@ import argparse
 import pandas as pd
 from src.preprocess_samples import preprocess_samples
 from src.new_filter import filter_db, save_as_vsearch_db
-from src.solve_table import solve_all, score_predictions
-from src.torch_solver import solve_table
+# from src.solve_table import solve_all, score_predictions
+# from src.torch_solver import solve_table
+from src.torch_solver import TorchSolver
 
 
 def get_args():
@@ -43,12 +44,6 @@ def get_args():
         "--otu_path",
         type=str,
         help="Path to an OTU table. Skips preprocessing.",
-    )
-    parser.add_argument(
-        "--torch",
-        action="store_true",
-        help="Use PyTorch instead of NumPy for matrix operations.",
-        default=False,
     )
     return parser.parse_args()
 
@@ -98,19 +93,13 @@ def run_aptr():
         otu_path = f"{outdir}/filtered/otu_table.tsv"
 
     # Infer PTRs
-    if args.torch:
-        otus = pd.read_table(otu_path)
-        solutions = solve_table(otus=otus, db=db)
-        inferred_ptrs = solutions.pivot("genome", "sample", "ptr")
-        inferred_abundances = solutions.pivot("genome", "sample", "abundance")
-    else:
-        inferred_ptrs, inferred_abundances = solve_all(
-            otu_table_path=otu_path,
-            db_path=db_path,
-            left_adapter=args.adapter1,
-            right_adapter=args.adapter2,
-            torch=args.torch,
-        )
+    otus = pd.read_table(otu_path)
+    solver = TorchSolver(
+        genomes=db.generate_genome_objects()[0],
+    )
+    solutions = solve_table(otus=otus, db=db)
+    inferred_ptrs = solutions.pivot("genome", "sample", "ptr")
+    inferred_abundances = solutions.pivot("genome", "sample", "abundance")
 
     # Save inferred quantities
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")

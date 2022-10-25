@@ -23,22 +23,24 @@ def test_oor_dists():
     assert np.allclose(oor_distance(0, 0, 1), 0)
 
     # Assert symmetry:
-    x = np.linspace(0, 1, 100)
+    x = np.arange(0, 1.01, 0.01)
     assert np.allclose(
-        oor_distance(x[:50], 0, 1), oor_distance(x[50:], 0, 1)[::-1]
+        oor_distance(x[:50], oor=0, size=1),
+        oor_distance(x[51:], oor=0, size=1)[:, ::-1],
     )
 
     # Symmetry around trough as well:
     assert np.allclose(
-        oor_distance(x[:50], 0.5, 1), oor_distance(x[50:], 0.5, 1)[::-1]
+        oor_distance(x[:50], oor=0.5, size=1),
+        oor_distance(x[51:], oor=0.5, size=1)[:, ::-1],
     )
 
     # Test custom size and loc - random example I'm confident about:
-    input_arr = [0, 2, 4, 20]
+    input_arr = np.array([0, 2, 4, 20])
     input_oor = 3
     input_size = 100
     output_dists = oor_distance(input_arr, input_oor, input_size)
-    assert np.allclose(output_dists, [0.06, 0.02, 0.02, 0.34])
+    assert np.allclose(output_dists, [[0.06, 0.02, 0.02, 0.34]])
 
     # Test with/without normalization:
     output_dists_nonnorm = oor_distance(
@@ -46,6 +48,12 @@ def test_oor_dists():
     )
     # Don't forget to scale by 2
     assert np.allclose(output_dists * input_size / 2, output_dists_nonnorm)
+
+    # Ensure it handles lists:
+    assert np.allclose(
+        _exact_coverage_curve(log_ptr=[0.5, 0.1], distances=1),
+        [1.64872127, 2.45960311],
+    )
 
     return True
 
@@ -124,7 +132,7 @@ def test_exact_coverage_genome():
             2.45616717,
             1.77197593,
         ]
-    )
+    ).reshape(-1, 1)
     rna_locations, coverages = _exact_coverage_curve_genome(genome, lp, db=db)
     assert np.allclose(rna_locations, rna_locations_correct)
     assert np.allclose(coverages, coverages_correct)
@@ -146,9 +154,9 @@ def test_coverage_16s_and_wgs():
 
     # Verify datatypes and shapes:
     assert isinstance(rna_locations, np.ndarray) and rna_locations.ndim == 1
-    assert isinstance(rna_coverages, np.ndarray) and rna_coverages.ndim == 1
+    assert isinstance(rna_coverages, np.ndarray) and rna_coverages.ndim == 2
     assert isinstance(wgs_locations, np.ndarray) and wgs_locations.ndim == 1
-    assert isinstance(wgs_coverages, np.ndarray) and wgs_coverages.ndim == 1
+    assert isinstance(wgs_coverages, np.ndarray) and wgs_coverages.ndim == 2
 
     # Verify matching
     rna_indices = (rna_locations * len(wgs_locations)).astype(int)
@@ -236,6 +244,7 @@ def test_simulate_samples():
 
     # Case with a signle log_ptr
     np.random.seed(42)
+    print("We are here")
     otus = simulate_samples(
         abundances=pd.DataFrame(index=["903510.3"], columns=[0], data=[1]),
         log_ptrs=pd.DataFrame(
