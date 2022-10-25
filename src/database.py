@@ -35,11 +35,11 @@ class RnaDB:
                 self.right_primer = None
 
         # Set some other useful attributes
-        self.genomes = self.db["genome"].unique()
-        self.complete_genomes = self.db[self.db["n_contigs"] == 1][
-            "genome"
-        ].unique()
-        self.md5s = self.db["md5"].unique()
+        self.genomes = list(self.db["genome"].unique())
+        self.complete_genomes = list(
+            self.db[self.db["n_contigs"] == 1]["genome"].unique()
+        )
+        self.md5s = list(self.db["md5"].unique())
 
     def find_genomes_by_md5(self, md5s: List[str]) -> List[str]:
         """
@@ -55,10 +55,10 @@ class RnaDB:
         list:
             All genomes IDs matching the given md5 hash.
         """
-        return list(self.db[self.db["md5"].isin(md5s)]["genome"].unique())
+        return list(self[md5s]["genome"].unique())
 
     def generate_genome_objects(
-        self, genome_ids: list
+        self, genome_ids: list, from_md5s: bool = False
     ) -> Tuple[List[Dict[str, List[int]]], List[str]]:
         """
         Given a genome ID, return a 'genome' object
@@ -67,6 +67,8 @@ class RnaDB:
         -----
         genome_ids: list
             List of genome IDs to generate genome objects for.
+        from_md5s: bool
+            If True, interpret genome_ids as md5 hashes instead of genome IDs.
 
         Returns:
         --------
@@ -85,6 +87,9 @@ class RnaDB:
 
         out = []
         all_seqs = []
+
+        if from_md5s:
+            genomes = self.find_genomes_by_md5(genome_ids)
 
         for genome_id in genome_ids:
             if genome_id not in self.genomes:
@@ -129,7 +134,11 @@ class RnaDB:
 
     def __getitem__(self, key: str) -> pd.DataFrame:
         """Return a subset of the DB corresponding to a genome ID"""
-        if key in self.genomes:
+        if isinstance(key, list) and np.all([x in self.genomes for x in key]):
+            return self.db[self.db["genome"].isin(key)]
+        elif isinstance(key, list) and np.all([x in self.md5s for x in key]):
+            return self.db[self.db["md5"].isin(key)]
+        elif key in self.genomes:
             return self.db[self.db["genome"] == key]
         elif key in self.md5s:
             return self.db[self.db["md5"] == key]

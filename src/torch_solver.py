@@ -15,8 +15,9 @@ class TorchSolver(torch.nn.Module):
 
     def set_vals(
         self,
-        genomes,
         coverages,
+        genomes=None,
+        md5s=None,
         abundances=None,
         ptrs=None,
         normalize=True,
@@ -37,6 +38,12 @@ class TorchSolver(torch.nn.Module):
             abundances = abundances.reshape(1, -1)
         if ptrs is not None and ptrs.ndim == 1:
             ptrs = ptrs.reshape(1, -1)
+
+        # Get genomes by md5s if not provided
+        if genomes is None and md5s is not None:
+            genomes = db.find_genomes_by_md5(md5s)
+        elif genomes is None and md5s is None:
+            raise ValueError("Must provide either genomes or md5s")
 
         # In case genomes is a list of IDs:
         if np.all([isinstance(g, str) for g in genomes]):
