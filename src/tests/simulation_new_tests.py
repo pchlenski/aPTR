@@ -245,7 +245,7 @@ def test_simulate_samples():
     # Case with a signle log_ptr
     np.random.seed(42)
     otus = simulate_samples(
-        abundances=pd.DataFrame(index=["903510.3"], columns=[0], data=[1]),
+        log_abundances=pd.DataFrame(index=["903510.3"], columns=[0], data=[1]),
         log_ptrs=pd.DataFrame(
             index=["903510.3"], columns=[0], data=np.log(1.5)
         ),
@@ -265,7 +265,7 @@ def test_simulate_samples():
     # Case with multiple log_ptrs
     np.random.seed(42)
     otus2 = simulate_samples(
-        abundances=pd.DataFrame(
+        log_abundances=pd.DataFrame(
             index=["903510.3"], columns=[0, 1, 2], data=[[1, 1, 1]]
         ),
         log_ptrs=pd.DataFrame(
@@ -281,7 +281,7 @@ def test_simulate_samples():
     np.random.seed(42)
     genomes = ["592022.4", "1348623.7", "545693.3"]
     otus3 = simulate_samples(
-        abundances=pd.DataFrame(
+        log_abundances=pd.DataFrame(
             index=genomes, columns=[0], data=np.ones((3, 1))
         ),
         log_ptrs=pd.DataFrame(

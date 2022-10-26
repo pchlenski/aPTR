@@ -66,8 +66,8 @@ class TorchSolver(torch.nn.Module):
         # Compute membership(C), distance (D) and gene_to_seq (E) matrices
         self.members = torch.zeros(size=(self.m, self.n))
         self.dists = torch.zeros(size=(self.m, self.n))
-        # self.gene_to_seq = torch.zeros(size=(self.k, self.m))
-        self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
+        self.gene_to_seq = torch.zeros(size=(self.k, self.m))
+        # self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
         i = 0
 
         for g, genome in enumerate(genome_objects):
@@ -79,8 +79,8 @@ class TorchSolver(torch.nn.Module):
             self.dists[i:j, g] = torch.tensor(pos)
 
             # Keep track of sequences
-            # for s, seq in enumerate(genome["seqs"]):
-            #     self.gene_to_seq[seq, i + s] = 1
+            for s, seq in enumerate(genome["seqs"]):
+                self.gene_to_seq[seq, i + s] = 1
             i = j
 
         # Compute coverages, etc
@@ -141,11 +141,16 @@ class TorchSolver(torch.nn.Module):
         early_stop_counter = 0
         losses = []
 
+        if verbose:
+            print(
+                f"Initial:\t {loss_fn(self(self.A_hat, self.B_hat), self.coverages)}"
+            )
+
         for epoch in range(epochs):
             for _ in range(iterations):
                 # Updates
                 F_hat = self(self.A_hat, self.B_hat)
-                F_hat = F_hat / torch.sum(F_hat)  # normalize
+                F_hat = F_hat / F_hat.sum(axis=0, keepdims=True)  # normalize
                 loss = loss_fn(F_hat, self.coverages)
                 losses.append(loss.item())
                 optimizer.zero_grad()

@@ -108,8 +108,9 @@ def _sample_from_system(
     multiplier=1,
     read_size=300,
     db=None,
+    perfect=False,
 ):
-    """Given predicted 16S use RNRPM and WGS use RP, sample from that system"""
+    """Given predicted 16S positions and PTRs, sample from that system"""
 
     if db is None:
         db = RnaDB()
@@ -134,15 +135,17 @@ def _sample_from_system(
     if multiplier == 0:
         return np.zeros_like(wgs_probs), np.zeros_like(rna_positions)
 
-    # Sample WGS reads using Poisson distribution
-    lam = wgs_probs * multiplier
-    read_starts = np.random.poisson(lam=lam)
-
-    # Figure out which hits overlap 16S RNAs:
+    # Sampled/expected WGS reads using Poisson distribution:
     genome_size = len(wgs_probs)
     rna_indices = (rna_positions * genome_size).astype(int)
+    lam = wgs_probs * multiplier
     rna_hits = np.zeros(shape=(len(rna_indices), len(log_ptr)))
+    if perfect:
+        read_starts = lam  # Use expectations
+    else:
+        read_starts = np.random.poisson(lam=lam)
 
+    # Figure out which hits overlap 16S RNAs:
     for i, rna_index in enumerate(rna_indices):
         rna_hits[i, :] = read_starts[rna_index : rna_index + read_size].sum(
             axis=0
@@ -198,12 +201,14 @@ def _generate_otu_table(rna_hits, genome, db=None):
 
 
 def simulate_samples(
-    abundances: pd.DataFrame,
+    log_abundances: pd.DataFrame,
     log_ptrs: pd.DataFrame,
     fasta_dir: str = None,
     fasta_ext: str = ".fna.gz",
     fastq_out_path: str = None,
     db: RnaDB = None,
+    multiplier: float = 1,
+    perfect: bool = False,
     read_size: int = 300,
 ) -> pd.DataFrame:
     """Fully simulate n samples for a genome. Skips WGS if paths are not given."""
@@ -211,10 +216,10 @@ def simulate_samples(
         db = RnaDB()
 
     # Ensure index and columns match for abundances and log_ptrs
-    abundances = abundances.reindex(
+    log_abundances = log_abundances.reindex(
         index=log_ptrs.index, columns=log_ptrs.columns
     )
-    abundances = abundances.fillna(0)
+    abundances = np.exp(log_abundances).fillna(0)
 
     out = []
     for sample in log_ptrs.columns:
@@ -227,7 +232,8 @@ def simulate_samples(
                 log_ptr=log_ptr,
                 db=db,
                 read_size=read_size,
-                multiplier=abundances.loc[genome, sample],
+                multiplier=multiplier * abundances.loc[genome, sample],
+                perfect=perfect,
             )
             if fasta_dir is not None and fastq_out_path is not None:
                 _generate_fastq_reads(
@@ -244,7 +250,7 @@ def simulate_samples(
 
 
 def make_tables(
-    n_genomes=10, n_samples=20, db=None, sparsity=0.5
+    n_genomes=10, n_samples=20, db=None, sparsity=0.5, **kwargs
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Convenience function to quickly generate OTU tables with ground truth."""
 
@@ -254,17 +260,24 @@ def make_tables(
     genomes = np.random.choice(db.complete_genomes, n_genomes, replace=False)
     samples = list(range(n_samples))
 
-    log_ptrs = pd.DataFrame(index=genomes, columns=samples)
-    abundances = pd.DataFrame(index=genomes, columns=samples)
+    # Vectorized generator
+    n = len(genomes)
+    s = len(samples)
+    mask = np.random.rand(n, s) > sparsity
+    log_ptrs = pd.DataFrame(
+        index=genomes,
+        columns=samples,
+        data=mask * np.random.rand(n, s),
+        dtype=float,
+    )
+    log_abundances = pd.DataFrame(
+        index=genomes,
+        columns=samples,
+        data=mask * np.random.lognormal(size=(n, s)),
+        dtype=float,
+    )
 
-    for sample in samples:
-        for genome in genomes:
-            if np.random.rand() < sparsity:
-                log_ptrs.loc[genome, sample] = np.random.rand()
-                abundances.loc[genome, sample] = np.random.lognormal(0)
-            else:
-                log_ptrs.loc[genome, sample] = np.nan
-                abundances.loc[genome, sample] = 0
-
-    otus = simulate_samples(abundances=abundances, log_ptrs=log_ptrs, db=db)
-    return abundances, log_ptrs, otus
+    otus = simulate_samples(
+        log_abundances=log_abundances, log_ptrs=log_ptrs, db=db, **kwargs
+    )
+    return log_abundances, log_ptrs, otus
