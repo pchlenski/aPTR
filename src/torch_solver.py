@@ -41,11 +41,8 @@ class TorchSolver(torch.nn.Module):
             #     if all([md5 in md5s for md5 in genome_md5s]):
             #         genomes.append(genome)
 
-        # In case genomes is a list of IDs:
-        # Overwrites MD5s
-        genome_objects, md5s, gene_to_seq = db.generate_genome_objects(
-            genome_ids
-        )
+        # In case genomes is a list of IDs; overwrites MD5s
+        genome_objs, md5s, gene_to_seq = db.generate_genome_objects(genome_ids)
 
         if len(genome_ids) == 0:
             raise ValueError("No genomes found")
@@ -54,23 +51,21 @@ class TorchSolver(torch.nn.Module):
         self.db = db
         self.genome_ids = genome_ids
         self.sample_ids = list(otus.columns)
-        self.genome_objects = genome_objects
+        self.genome_objects = genome_objs
         self.md5s = md5s
-        # self.seqs = set().union(*[set(genome["seqs"]) for genome in genomes])
+
         self.s = otus.shape[1]
         self.n = len(genome_ids)
-        self.m = np.sum([len(g["pos"]) for g in genome_objects])
-        # self.k = len(self.seqs)
+        self.m = np.sum([len(g["pos"]) for g in genome_objs])
         self.k = len(md5s)
 
         # Compute membership(C), distance (D) and gene_to_seq (E) matrices
         self.members = torch.zeros(size=(self.m, self.n))
         self.dists = torch.zeros(size=(self.m, self.n))
-        self.gene_to_seq = torch.zeros(size=(self.k, self.m))
-        # self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
+        self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
         i = 0
 
-        for g, genome in enumerate(genome_objects):
+        for g, genome in enumerate(genome_objs):
             pos = genome["pos"].flatten()
             j = i + len(pos)
 
@@ -78,9 +73,6 @@ class TorchSolver(torch.nn.Module):
             self.members[i:j, g] = 1
             self.dists[i:j, g] = torch.tensor(pos)
 
-            # Keep track of sequences
-            for s, seq in enumerate(genome["seqs"]):
-                self.gene_to_seq[seq, i + s] = 1
             i = j
 
         # Compute coverages, etc
