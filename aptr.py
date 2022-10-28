@@ -88,7 +88,7 @@ def run_aptr():
             path=args.path,
             adapter1=args.adapter1,
             adapter2=args.adapter2,
-            db_path=db_fasta_path,
+            db_fasta_path=db_fasta_path,
             outdir=outdir,
         )
         otu_path = f"{outdir}/filtered/otu_table.tsv"

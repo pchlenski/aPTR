@@ -310,7 +310,7 @@ def preprocess_samples(
 
                 # Check if paired
                 if prefix.endswith("_1") or prefix.endswith("_2"):
-                    prefix = prefix.rstrip("_1").rstrip("_2")
+                    prefix = prefix[:-2]
                     paired.add((prefix, suffix))  # Note double parens
                 else:
                     unpaired.add((prefix, suffix))
