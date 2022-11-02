@@ -7,6 +7,7 @@ from typing import Iterable, List, Tuple
 import gzip
 from src.database import RnaDB
 from src.oor_distance import oor_distance
+from src.string_operations import rc
 
 
 def _exact_coverage_curve(
@@ -154,12 +155,6 @@ def _sample_from_system(
     return read_starts, rna_hits
 
 
-def _rc(seq):
-    """Reverse complement of a DNA sequence. Assumes lowercase"""
-    seq = seq.lower()
-    return seq.translate(str.maketrans("acgt", "tgca"))[::-1]
-
-
 def _generate_fastq_reads(starts, input_path, output_path=None, length=300):
     # Read sequence
     if input_path.endswith("gz"):
@@ -176,7 +171,7 @@ def _generate_fastq_reads(starts, input_path, output_path=None, length=300):
     for start in starts:
         read = sequence[start : start + length]
         if np.random.rand() < 0.5:
-            read = _rc(read.upper())
+            read = rc(read.upper())
         reads.append(
             f"@{input_path}:{start}:{start+length}\n{read}\n+\n{'#'*length}"
         )
@@ -239,7 +234,7 @@ def simulate_samples(
                 _generate_fastq_reads(
                     start=starts,
                     genome=genome,
-                    input_path=f"{fasta_path}/{genome}{fasta_ext}",
+                    input_path=f"{fasta_dir}/{genome}{fasta_ext}",
                     output_path=fastq_out_path,
                 )
             sample_out.append(

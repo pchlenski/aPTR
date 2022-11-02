@@ -1,65 +1,14 @@
 """ Scripts for filtering DB by PCR primers """
 
+from importlib.abc import PathEntryFinder
 import pandas as pd
+import numpy as np
 import re
 from hashlib import md5
+from src.string_operations import rc, key, primers
 
 # Data directory (global variable)
 _DD = "../data/"
-
-# Shorthand for primers
-_primers = {
-    "8F": "AGAGTTTGATCCTGGCTCAG",
-    "27F": "AGAGTTTGATCMTGGCTCAG",
-    "CYA106F": "CGGACGGGTGAGTAACGCGTGA",
-    "CC [F]": "CCAGACTCCTACGGGAGGCAGC",
-    "357F": "CTCCTACGGGAGGCAGCAG",
-    "CYA359F": "GGGGAATYTTCCGCAATGGG",
-    "515F": "GTGCCAGCMGCCGCGGTAA",
-    "533F": "GTGCCAGCAGCCGCGGTAA",
-    "895F": "CRCCTGGGGAGTRCRG",
-    "16S.1100.F16": "CAACGAGCGCAACCCT",
-    "1237F": "GGGCTACACACGYGCWAC",
-    "519R": "GWATTACCGCGGCKGCTG",
-    "CYA781R": "GACTACWGGGGTATCTAATCCCWTT",
-    "CD [R]": "CTTGTGCGGGCCCCCGTCAATTC",
-    "902R": "GTCAATTCITTTGAGTTTYARYC",
-    "904R": "CCCCGTCAATTCITTTGAGTTTYAR",
-    "907R": "CCGTCAATTCMTTTRAGTTT",
-    "1100R": "AGGGTTGCGCTCGTTG",
-    "1185mR": "GAYTTGACGTCATCCM",
-    "1185aR": "GAYTTGACGTCATCCA",
-    "1381R": "CGGTGTGTACAAGRCCYGRGA",
-    "1381bR": "CGGGCGGTGTGTACAAGRCCYGRGA",
-    "1391R": "GACGGGCGGTGTGTRCA",
-    "1492R (l)": "GGTTACCTTGTTACGACTT",
-    "1492R (s)": "ACCTTGTTACGACTT",
-    "926R": "CCGYCAATTYMTTTRAGTTT",  # right for SRS8281217
-    "515FB": "GTGYCAGCMGCCGCGGTAA",  # left for SRS8281217
-    "Illumina1": "TCGTCGGCAGCGTCAGATGTGTATAAGAGACAGCCTACGGGNGGCWGCAG",  # left for Italian study
-    "Illumina2": "GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAGGACTACHVGGGTATCTAATCC",  # right for Italian study
-}
-
-# IUPAC codes for nucleotides
-# https://www.bioinformatics.org/sms/iupac.html
-_key = {
-    "n": "a|c|g|t",
-    "x": "a|c|g|t",
-    "d": "a|g|t",
-    "h": "a|c|t",
-    "v": "a|c|g",
-    "b": "c|g|t",
-    "r": "a|g",
-    "y": "c|t",
-    "m": "a|c",
-    "w": "a|t",
-    "k": "g|t",
-    "s": "c|g",
-    "a": "a",
-    "c": "c",
-    "g": "g",
-    "t": "t",
-}
 
 
 def _find_primer(seq: str, primer: str) -> list:
@@ -94,17 +43,19 @@ def _find_primer(seq: str, primer: str) -> list:
         # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
 
     # Handle named primers
-    elif primer in _primers:
-        primer = _primers[primer]
+    elif primer in primers:
+        primer = primers[primer]
 
     # Turn primer into regex
-    re_primer = "".join([_key[x] for x in primer.lower()])
+    re_primer = "".join([key[x] for x in primer.lower()])
     pattern = re.compile(re_primer)
     out = pattern.split(seq, maxsplit=1)
     return out
 
 
-def _trim_primers(seq: str, left: str, right: str) -> str:
+def _trim_primers(
+    seq: str, left: str, right: str, reverse: bool = False
+) -> str:
     """
     Trim a sequence by a left and right primer.
 
@@ -116,6 +67,8 @@ def _trim_primers(seq: str, left: str, right: str) -> str:
         Primer with which to trim the sequence from the 3' end.
     right: str
         Primer with which to trim the sequence from the 5' end.
+    reverse: bool
+        If True, reverse-complement right primer before trimming.
 
     Returns:
     --------
@@ -125,18 +78,36 @@ def _trim_primers(seq: str, left: str, right: str) -> str:
     -------
     TODO
     """
-    # Input stuff
-    seq = str(seq).lower()
+    # # Input stuff
+    # seq = str(seq).lower()
 
-    # Left side
-    trim_left = _find_primer(seq, left)
-    seq = trim_left[-1]
+    # # Left side
+    # trim_left = _find_primer(seq, left)
+    # seq = trim_left[-1]
 
-    # Right side
-    trim_right = _find_primer(seq, right)
-    seq = trim_right[0]
+    # # Right side
+    # trim_right = _find_primer(seq, right)
+    # seq = trim_right[0]
 
-    return seq
+    # return seq
+
+    # Revised: we do it this way now
+    if (left is None or left == "") and (right is None or right == ""):
+        return seq
+    elif seq is None or seq == "" or not isinstance(seq, str) or len(seq) == 0:
+        print("Warning: sequence is empty or not a string")
+        return ""
+    else:
+        fwd_primer = "".join([key[x] for x in left.lower()])
+        if reverse:
+            right = rc(right)  # reverse complement of right primer
+        rev_primer = "".join([key[x] for x in right.lower()])
+        pattern = re.compile(fwd_primer + "(.*)" + rev_primer)
+        match = pattern.search(seq)
+        if match:
+            return match.group(1)
+        else:
+            return ""
 
 
 def filter_db(
@@ -173,8 +144,8 @@ def filter_db(
     # Get tables
     dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
     ssu_table = pd.read_table(
-        path_to_16s, dtype={0: str}
-    )  # 'dtype' sets genome ID as string
+        path_to_16s, dtype={"genome.genome_id": str, "feature.na_sequence": str}
+    )
 
     # Clean up by DnaA:
     dnaA_table = dnaA_table[
@@ -192,11 +163,23 @@ def filter_db(
         suffixes=["_16s", "_dnaA"],
     )
 
+    original_len = len(table)
+
     # Add 16S substring
     table.loc[:, "filtered_seq"] = [
         _trim_primers(x, left_primer, right_primer)
         for x in table["feature.na_sequence"]
     ]
+
+    # Drop all bad values (may be redundant)
+    table = table[table["filtered_seq"] != ""]
+    table = table.dropna(subset=["filtered_seq"])
+    table = table[table["filtered_seq"].str.len() > 0]
+
+    print(
+        np.sum(table["filtered_seq"] != "") / original_len,
+        "sequences remain after trimming",
+    )
 
     # Iteratively filter on sequence
     diff = 1
@@ -216,6 +199,11 @@ def filter_db(
         table_filtered = table[~table["filtered_seq"].isin(bad_seqs)]
         diff = len(table) - len(table_filtered)
         table = table_filtered
+
+    print(
+        np.sum(table["filtered_seq"] != "") / original_len,
+        "sequences remain after filtering",
+    )
 
     # Clean up and return table
     table = table[
@@ -242,7 +230,7 @@ def filter_db(
     ]
 
     table.loc[:, "md5"] = [
-        md5(x.encode("utf-8")).hexdigest() for x in table["16s_sequence"]
+        md5(str(x).encode("utf-8")).hexdigest() for x in table["16s_sequence"]
     ]
 
     return table
