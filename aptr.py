@@ -109,6 +109,7 @@ def run_aptr():
         # Save a reduced database with adapters cut
         save_as_vsearch_db(db.db, output_file_path=db_fasta_path)
         pickle.dump(db, open(f"{outdir}/db.pkl", "wb"))
+        db.db.to_csv(f"{outdir}/db.csv")
 
     # All the preprocessing takes place here
     if args.otu_path:
@@ -129,7 +130,14 @@ def run_aptr():
 
     # Infer PTRs
     otus = pd.read_table(otu_path, index_col=0)
+    if len(otus) == 0:
+        print("No OTUs found. Exiting. You may want to try a different cutoff.")
+        return
+
     solver = TorchSolver(md5s=otus.index, otus=otus, db=db)
+    solver.otu_table.to_csv(f"{outdir}/filtered_otu_table.tsv", sep="\t")
+    pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
+    print(f"Genomes: {solver.genome_ids}")
 
     solver.train(lr=0.1, tolerance=1e-6)
     inferred_ptrs = pd.DataFrame(
@@ -142,6 +150,8 @@ def run_aptr():
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
+    # Dump again after training
+    pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
 
     # Save inferred quantities
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")

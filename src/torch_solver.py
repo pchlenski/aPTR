@@ -32,8 +32,11 @@ class TorchSolver(torch.nn.Module):
                 print("Using OTU index for md5s")
                 md5s = list(otus.index)
 
-            genome_candidates = db.find_genomes_by_md5(md5s)
-            genome_ids = genome_candidates
+            genome_ids = db.find_genomes_by_md5(md5s, strict=True)
+            md5s = db[genome_ids]["md5"].unique()
+            # This ensures we throw out any spurious md5 sequences we may have
+            # because of the reindexing by md5s later on
+
             # genomes = []
             # # Verify genome md5s are a subset of provided md5s
             # for genome in genome_candidates:
@@ -41,11 +44,13 @@ class TorchSolver(torch.nn.Module):
             #     if all([md5 in md5s for md5 in genome_md5s]):
             #         genomes.append(genome)
 
-        # In case genomes is a list of IDs; overwrites MD5s
-        genome_objs, md5s, gene_to_seq = db.generate_genome_objects(genome_ids)
-
         if len(genome_ids) == 0:
             raise ValueError("No genomes found")
+
+        # In case genomes is a list of IDs; overwrites MD5s
+        genome_objs, md5s, gene_to_seq = db.generate_genome_objects(genome_ids)
+        otus = otus.reindex(md5s)
+        otus = otus.loc[:, otus.sum(axis=0) > 0]
 
         # Set a bunch of attribute values for use later
         self.db = db
@@ -53,7 +58,9 @@ class TorchSolver(torch.nn.Module):
         self.sample_ids = list(otus.columns)
         self.genome_objects = genome_objs
         self.md5s = md5s
+        self.otu_table = otus
 
+        # All sizes
         self.s = otus.shape[1]
         self.n = len(genome_ids)
         self.m = np.sum([len(g["pos"]) for g in genome_objs])
@@ -76,7 +83,6 @@ class TorchSolver(torch.nn.Module):
             i = j
 
         # Compute coverages, etc
-        otus = otus.reindex(self.md5s)
         self.coverages = torch.tensor(otus.values, dtype=torch.float32)
         self.coverages = torch.nan_to_num(self.coverages, nan=0)
         if normalize:
