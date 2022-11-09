@@ -102,7 +102,7 @@ def _trim_primers(
         if reverse:
             right = rc(right)  # reverse complement of right primer
         rev_primer = "".join([key[x] for x in right.lower()])
-        pattern = re.compile(fwd_primer + "(.*)" + rev_primer)
+        pattern = re.compile(f"({fwd_primer}.*{rev_primer})")
         match = pattern.search(seq)
         if match:
             return match.group(1)

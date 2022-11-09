@@ -7,6 +7,8 @@ import uuid
 import argparse
 import pandas as pd
 import pickle
+import numpy as np
+from src.string_operations import rc
 from src.preprocess_samples import preprocess_samples
 from src.database import RnaDB
 from src.new_filter import save_as_vsearch_db
@@ -45,6 +47,22 @@ def get_args():
         type=str,
         help="Path to an OTU table. Skips preprocessing.",
     )
+    parser.add_argument(
+        "--rc_adapter1",
+        action="store_true",
+        help="Reverse-complement adapter1",
+    )
+    parser.add_argument(
+        "--rc_adapter2",
+        action="store_true",
+        help="Reverse-complement adapter2",
+    )
+    parser.add_argument(
+        "--cutoff",
+        type=float,
+        default=1.0,
+        help="Cutoff for OTU table filtering. Default: 1.0",
+    )
     return parser.parse_args()
 
 
@@ -55,6 +73,12 @@ def run_aptr():
 
     # Suppress pandas indexing warning
     pd.options.mode.chained_assignment = None
+
+    # Reverse-complement adapters if necessary
+    if args.rc_adapter1:
+        args.adapter1 = rc(args.adapter1)
+    if args.rc_adapter2:
+        args.adapter2 = rc(args.adapter2)
 
     outdir = f"{args.path}/aptr_{uuid.uuid4()}"
 
@@ -68,6 +92,12 @@ def run_aptr():
             left_primer=args.adapter1,
             right_primer=args.adapter2,
         )
+        if len(db.db) < 10:
+            print("Warning: DB is very small. Perhaps try reversing a primer?")
+        elif np.median([len(x) for x in db.db["16s_sequence"]]) < 100:
+            print(
+                "Warning: Sequences are very short. Perhaps try reversing a primer?"
+            )
         db_pickle_path = f"{outdir}/db.pkl"
         db_fasta_path = f"{outdir}/db.fasta"
         try:
@@ -84,14 +114,18 @@ def run_aptr():
     if args.otu_path:
         otu_path = args.otu_path
     else:
+        print("Preprocessing samples...")
         preprocess_samples(
             path=args.path,
-            adapter1=args.adapter1,
-            adapter2=args.adapter2,
+            # adapter1=args.adapter1,
+            # adapter2=args.adapter2,
+            adapter1="",  # TODO: this is a temporary hack to avoid cutadapt problems
+            adapter2="",  # TODO: this is a temporary hack to avoid cutadapt problems
             db_fasta_path=db_fasta_path,
             outdir=outdir,
+            cutoff=args.cutoff,
         )
-        otu_path = f"{outdir}/filtered/otu_table.tsv"
+        otu_path = f"{outdir}/otu_table.tsv"
 
     # Infer PTRs
     otus = pd.read_table(otu_path, index_col=0)

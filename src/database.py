@@ -41,7 +41,7 @@ class RnaDB:
         )
         self.md5s = list(self.db["md5"].unique())
 
-    def find_genomes_by_md5(self, md5s: List[str]) -> List[str]:
+    def find_genomes_by_md5(self, md5s: List[str], strict: bool = False) -> List[str]:
         """
         Given an md5-hashed seq, return all genome IDs with that sequence
 
@@ -49,13 +49,26 @@ class RnaDB:
         -----
         md5: str
             md5-hashed sequence to search for.
+        strict: bool
+            If True, only return genomes for which EVERY md5 sequence is
+            present in the query. Otherwise, return genomes for which ANY
+            md5 sequence is present in the query.
 
         Returns:
         --------
         list:
             All genomes IDs matching the given md5 hash.
         """
-        return list(self[md5s]["genome"].unique())
+        candidates = list(self[md5s]["genome"].unique())
+        if strict:
+            out = []
+            for genome in candidates:
+                genome_md5s = self[genome]["md5"].unique()
+                if np.all([md5 in md5s for md5 in genome_md5s]):
+                    out.append(genome)
+            return out
+        else:
+            return candidates
 
     def generate_genome_objects(
         self, genome_ids: list, from_md5s: bool = False
