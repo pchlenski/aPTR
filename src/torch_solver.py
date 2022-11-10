@@ -150,6 +150,9 @@ class TorchSolver(torch.nn.Module):
                 F_hat = self(self.A_hat, self.B_hat)
                 F_hat = F_hat / F_hat.sum(axis=0, keepdims=True)  # normalize
                 loss = loss_fn(F_hat, self.coverages)
+                # Regularize: L1 for A, L2 for B
+                loss += 1e-8 * torch.norm(self.A_hat.exp(), p=1)
+                loss += 1e-8 * torch.norm(self.B_hat.exp(), p=2)
                 losses.append(loss.item())
                 optimizer.zero_grad()
                 loss.backward()

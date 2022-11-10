@@ -150,12 +150,31 @@ def run_aptr():
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
+
+    # Figure out how many reads each estimate got
+    unconvolved_coverages = (
+        solver.dists @ solver.A_hat + 1 - solver.dists @ solver.B_hat
+    ).exp()
+    unconvolved_coverages_normed = (
+        unconvolved_coverages / unconvolved_coverages.sum(axis=0)
+    )
+    raw_reads = (
+        unconvolved_coverages_normed.detach().numpy()
+        * solver.otu_table.sum(axis=0).values
+    )
+    reads_per_genome = np.linalg.pinv(solver.members) @ raw_reads
+    n_reads_used = pd.DataFrame(
+        data=reads_per_genome,
+        index=solver.genome_ids,
+        columns=solver.sample_ids,
+    )
     # Dump again after training
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
 
     # Save inferred quantities
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
     inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
+    n_reads_used.to_csv(f"{outdir}/n_reads_used.tsv", sep="\t")
 
     # Score PTRs: TODO
 
