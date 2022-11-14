@@ -63,6 +63,12 @@ def get_args():
         default=1.0,
         help="Cutoff for OTU table filtering. Default: 1.0",
     )
+    parser.add_argument(
+        "--min_n_reads",
+        type=int,
+        default=1000,
+        help="Minimum number of reads per genome to return a PTR estimate.",
+    )
     return parser.parse_args()
 
 
@@ -168,6 +174,14 @@ def run_aptr():
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
+
+    # Filter by cutoff
+    mask = n_reads_used > args.min_n_reads
+    mask &= inferred_ptrs >= 1
+    mask &= inferred_ptrs <= 3
+    inferred_ptrs = inferred_ptrs[mask]
+    inferred_abundances = inferred_abundances[mask]
+
     # Dump again after training
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
 
