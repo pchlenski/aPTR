@@ -177,8 +177,8 @@ def run_aptr():
 
     # Filter by cutoff
     mask = n_reads_used > args.min_n_reads
-    mask &= inferred_ptrs >= 1
-    mask &= inferred_ptrs <= 3
+    # mask &= inferred_ptrs >= 1
+    # mask &= inferred_ptrs <= 3
     inferred_ptrs = inferred_ptrs[mask]
     inferred_abundances = inferred_abundances[mask]
 
