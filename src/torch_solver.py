@@ -85,8 +85,6 @@ class TorchSolver(torch.nn.Module):
         # Compute coverages, etc
         self.coverages = torch.tensor(otus.values, dtype=torch.float32)
         self.coverages = torch.nan_to_num(self.coverages, nan=0)
-        # Add epsilon to avoid log(0)
-        self.coverages += 1e-1
         if normalize:
             self.coverages /= torch.sum(self.coverages, axis=0, keepdim=True)
 
@@ -120,17 +118,18 @@ class TorchSolver(torch.nn.Module):
         l2: float = 0,
         verbose: bool = True,
         clip: bool = False,
+        normalize: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
         # Initialize a_hat and b_hat
         if A_hat is None:
-            A_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
+            A_hat = torch.ones(size=(self.n, self.s), requires_grad=True)
         elif type(A_hat) is np.ndarray:
             A_hat = A_hat.reshape(self.s, self.n)
             A_hat = torch.from_numpy(A_hat).float().requires_grad_(True)
         if B_hat is None:
-            B_hat = torch.zeros(size=(self.n, self.s), requires_grad=True)
+            B_hat = torch.ones(size=(self.n, self.s), requires_grad=True)
         elif type(B_hat) is np.ndarray:
             B_hat = B_hat.reshape(self.n, self.s)
             B_hat = torch.from_numpy(B_hat).float().requires_grad_(True)
@@ -152,7 +151,10 @@ class TorchSolver(torch.nn.Module):
             for _ in range(iterations):
                 # Updates
                 F_hat = self(self.A_hat, self.B_hat)
-                F_hat = F_hat / F_hat.sum(axis=0, keepdims=True)  # normalize
+                if normalize:
+                    F_hat = F_hat / F_hat.sum(
+                        axis=0, keepdims=True
+                    )  # normalize
                 loss = loss_fn(F_hat, self.coverages)
                 # Regularize: L1 for A, L2 for B
                 loss += l1 * torch.norm(self.A_hat.exp(), p=1)
