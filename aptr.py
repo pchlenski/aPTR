@@ -43,6 +43,12 @@ def get_args():
         help="Path to a pickled RnaDB object. Skips database generation.",
     )
     parser.add_argument(
+        "--readcounts_path",
+        type=str,
+        default=None,
+        help="Path to processed read counts. Skips preprocessing.",
+    )
+    parser.add_argument(
         "--otu_path",
         type=str,
         help="Path to an OTU table. Skips preprocessing.",
@@ -68,6 +74,18 @@ def get_args():
         type=int,
         default=1000,
         help="Minimum number of reads per genome to return a PTR estimate.",
+    )
+    parser.add_argument(
+        "--l1",
+        type=float,
+        default=0.0,
+        help="L1 regularization coefficient on abundances. Default: 0.0",
+    )
+    parser.add_argument(
+        "--l2",
+        type=float,
+        default=0.0,
+        help="L2 regularization coefficient on PTRs. Default: 0.0",
     )
     return parser.parse_args()
 
@@ -129,6 +147,7 @@ def run_aptr():
             adapter1="",  # TODO: this is a temporary hack to avoid cutadapt problems
             adapter2="",  # TODO: this is a temporary hack to avoid cutadapt problems
             db_fasta_path=db_fasta_path,
+            readcounts_path=args.readcounts_path,
             outdir=outdir,
             cutoff=args.cutoff,
         )
@@ -145,7 +164,7 @@ def run_aptr():
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
     print(f"Genomes: {solver.genome_ids}")
 
-    solver.train(lr=0.1, tolerance=1e-6)
+    solver.train(lr=0.1, tolerance=1e-6, clip=True, l1=args.l1, l2=args.l2)
     inferred_ptrs = pd.DataFrame(
         data=solver.B_hat.exp().detach().numpy(),
         index=solver.genome_ids,

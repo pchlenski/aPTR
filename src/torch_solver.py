@@ -85,6 +85,8 @@ class TorchSolver(torch.nn.Module):
         # Compute coverages, etc
         self.coverages = torch.tensor(otus.values, dtype=torch.float32)
         self.coverages = torch.nan_to_num(self.coverages, nan=0)
+        # Add epsilon to avoid log(0)
+        self.coverages += 1e-1
         if normalize:
             self.coverages /= torch.sum(self.coverages, axis=0, keepdim=True)
 
@@ -114,6 +116,8 @@ class TorchSolver(torch.nn.Module):
         loss_fn: Callable = torch.nn.functional.mse_loss,
         A_hat: torch.Tensor = None,
         B_hat: torch.Tensor = None,
+        l1: float = 0,
+        l2: float = 0,
         verbose: bool = True,
         clip: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
@@ -151,8 +155,8 @@ class TorchSolver(torch.nn.Module):
                 F_hat = F_hat / F_hat.sum(axis=0, keepdims=True)  # normalize
                 loss = loss_fn(F_hat, self.coverages)
                 # Regularize: L1 for A, L2 for B
-                loss += 1e-8 * torch.norm(self.A_hat.exp(), p=1)
-                loss += 1e-8 * torch.norm(self.B_hat, p=2)
+                loss += l1 * torch.norm(self.A_hat.exp(), p=1)
+                loss += l2 * torch.norm(self.B_hat, p=2)
                 losses.append(loss.item())
                 optimizer.zero_grad()
                 loss.backward()
