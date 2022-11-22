@@ -20,7 +20,8 @@ class TorchSolver(torch.nn.Module):
         md5s: List[str] = None,
         abundances: pd.DataFrame = None,
         ptrs: pd.DataFrame = None,
-        normalize: bool = True,
+        # normalize: bool = True,
+        normalize: bool = False,
         db: RnaDB = None,
     ):
         if db is None:
@@ -96,14 +97,15 @@ class TorchSolver(torch.nn.Module):
         Compute convolved coverage vector (= observed coverages)
 
         Assumes the following:
-        A = log-abundance
-        B = log-ptr
+        A = abundance (n x s)
+        B = log-ptr (n x s)
         """
         C = self.members
         D = self.dists
-        G = C @ A + 1 - D @ B
+        # G = C @ A + 1 - D @ B
         E = self.gene_to_seq
-        return E @ torch.exp(G)
+        # return E @ torch.exp(G)
+        return E @ (C @ A * torch.exp(1 - D @ B)) # for non-log abundances
 
     def train(
         self,
@@ -111,14 +113,16 @@ class TorchSolver(torch.nn.Module):
         epochs: int = 500,
         iterations: int = 1000,
         tolerance: int = 5,
-        loss_fn: Callable = torch.nn.functional.mse_loss,
+        # loss_fn: Callable = torch.nn.functional.mse_loss,
+        loss_fn: Callable = torch.nn.functional.poisson_nll_loss,
         A_hat: torch.Tensor = None,
         B_hat: torch.Tensor = None,
         l1: float = 0,
         l2: float = 0,
         verbose: bool = True,
         clip: bool = False,
-        normalize: bool = True,
+        # normalize: bool = True,
+        normalize: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
@@ -157,7 +161,8 @@ class TorchSolver(torch.nn.Module):
                     )  # normalize
                 loss = loss_fn(F_hat, self.coverages)
                 # Regularize: L1 for A, L2 for B
-                loss += l1 * torch.norm(self.A_hat.exp(), p=1)
+                # loss += l1 * torch.norm(self.A_hat.exp(), p=1)
+                loss += l1 * torch.norm(self.A_hat, p=1)
                 loss += l2 * torch.norm(self.B_hat, p=2)
                 losses.append(loss.item())
                 optimizer.zero_grad()
