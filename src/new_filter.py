@@ -11,50 +11,50 @@ from src.string_operations import rc, key, primers
 _DD = "../data/"
 
 
-def _find_primer(seq: str, primer: str) -> list:
-    """
-    Given a sequence and a primer, returns the trimmed sequence. Handles empty
-    primers and named primers.
+# def _find_primer(seq: str, primer: str) -> list:
+#     """
+#     Given a sequence and a primer, returns the trimmed sequence. Handles empty
+#     primers and named primers.
 
-    Args:
-    -----
-    seq: str
-        Nucleotide sequence to trim
-    primer: str
-        Primer with which to trim the sequence. Can be empty, a named primer, or
-        a custom primer (specified by nucleotide sequence).
+#     Args:
+#     -----
+#     seq: str
+#         Nucleotide sequence to trim
+#     primer: str
+#         Primer with which to trim the sequence. Can be empty, a named primer, or
+#         a custom primer (specified by nucleotide sequence).
 
-    Returns:
-    --------
-    list: [str, str] or [str]
-        If the primer is found, returns the sequence split into the sequence
-        before the first occurrence of the primer and the sequence after the
-        first occurrence of the primer. If the primer is not found, returns the
-        original sequence in a list.
+#     Returns:
+#     --------
+#     list: [str, str] or [str]
+#         If the primer is found, returns the sequence split into the sequence
+#         before the first occurrence of the primer and the sequence after the
+#         first occurrence of the primer. If the primer is not found, returns the
+#         original sequence in a list.
 
-    Raises:
-    -------
-    TODO
-    """
+#     Raises:
+#     -------
+#     TODO
+#     """
 
-    # For cleanliness, handle empty primers:
-    if primer is None or primer == "":
-        return [seq]
-        # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
+#     # For cleanliness, handle empty primers:
+#     if primer is None or primer == "":
+#         return [seq]
+#         # Making this a singleton array ensures that seq[-1] and seq[0] return the right value
 
-    # Handle named primers
-    elif primer in primers:
-        primer = primers[primer]
+#     # Handle named primers
+#     elif primer in primers:
+#         primer = primers[primer]
 
-    # Turn primer into regex
-    re_primer = "".join([key[x] for x in primer.lower()])
-    pattern = re.compile(re_primer)
-    out = pattern.split(seq, maxsplit=1)
-    return out
+#     # Turn primer into regex
+#     re_primer = "".join([key[x] for x in primer.lower()])
+#     pattern = re.compile(re_primer)
+#     out = pattern.split(seq, maxsplit=1)
+#     return out
 
 
 def _trim_primers(
-    seq: str, left: str, right: str, reverse: bool = False
+    seq: str, left: str, right: str, reverse: bool = False, silent: bool = False
 ) -> str:
     """
     Trim a sequence by a left and right primer.
@@ -95,9 +95,17 @@ def _trim_primers(
     if (left is None or left == "") and (right is None or right == ""):
         return seq
     elif seq is None or seq == "" or not isinstance(seq, str) or len(seq) == 0:
-        print("Warning: sequence is empty or not a string")
+        if not silent:
+            print(f"Warning: sequence '{seq}' is empty or not a string")
         return ""
     else:
+        # Look up named primers
+        if left in primers:
+            left = primers[left]
+        if right in primers:
+            right = primers[right]
+
+        # The rest is a regex operation
         fwd_primer = "".join([key[x] for x in left.lower()])
         if reverse:
             right = rc(right)  # reverse complement of right primer
@@ -115,6 +123,7 @@ def filter_db(
     path_to_16s: str = f"{_DD}allSSU.tsv",
     left_primer: str = None,
     right_primer: str = None,
+    silent: bool = False,
 ) -> pd.DataFrame:
     """
     Filter DB by adapters, return candidate sequences
@@ -167,7 +176,7 @@ def filter_db(
 
     # Add 16S substring
     table.loc[:, "filtered_seq"] = [
-        _trim_primers(x, left_primer, right_primer)
+        _trim_primers(x, left_primer, right_primer, silent=silent)
         for x in table["feature.na_sequence"]
     ]
 
@@ -176,10 +185,11 @@ def filter_db(
     table = table.dropna(subset=["filtered_seq"])
     table = table[table["filtered_seq"].str.len() > 0]
 
-    print(
-        np.sum(table["filtered_seq"] != "") / original_len,
-        "sequences remain after trimming",
-    )
+    if not silent:
+        print(
+            np.sum(table["filtered_seq"] != "") / original_len,
+            "sequences remain after trimming",
+        )
 
     # Iteratively filter on sequence
     diff = 1
@@ -200,10 +210,11 @@ def filter_db(
         diff = len(table) - len(table_filtered)
         table = table_filtered
 
-    print(
-        np.sum(table["filtered_seq"] != "") / original_len,
-        "sequences remain after filtering",
-    )
+    if not silent:
+        print(
+            np.sum(table["filtered_seq"] != "") / original_len,
+            "sequences remain after filtering",
+        )
 
     # Clean up and return table
     table = table[
