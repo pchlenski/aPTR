@@ -181,7 +181,7 @@ class TorchSolver(torch.nn.Module):
                     self.B_hat.data = self.B_hat.clamp(0, 1)
 
                 self.A_hat.data = self.A_hat.clamp(0, None)  # Nonneg.
-                self.bias.data = self.bias.clamp(0, None)  # Nonneg.
+                self.bias.data = self.bias.clamp(0, 1)  # Nonneg.
 
             if verbose:
                 print(f"Epoch {epoch}:\t {loss}")

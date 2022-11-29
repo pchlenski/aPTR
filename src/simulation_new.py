@@ -296,13 +296,15 @@ def make_tables(
     n = len(genomes)
     s = len(samples)
     mask = np.random.rand(n, s) > sparsity
-    log_ptrs = pd.DataFrame(
+    # log_ptrs = pd.DataFrame(
+    log2_ptrs = pd.DataFrame(
         index=genomes,
         columns=samples,
         data=mask * np.random.rand(n, s),
         dtype=float,
     )
-    log_abundances = pd.DataFrame(
+    # log_abundances = pd.DataFrame(
+    abundances = pd.DataFrame(
         index=genomes,
         columns=samples,
         data=mask * np.random.lognormal(size=(n, s)),
@@ -310,6 +312,11 @@ def make_tables(
     )
 
     otus = simulate_samples(
-        log_abundances=log_abundances, log_ptrs=log_ptrs, db=db, **kwargs
+        # log_abundances=log_abundances, log_ptrs=log_ptrs, db=db, **kwargs
+        abundances=abundances,
+        log2_ptrs=log2_ptrs,
+        db=db,
+        **kwargs,
     )
-    return log_abundances, log_ptrs, otus
+    # return log_abundances, log_ptrs, otus
+    return abundances, log2_ptrs, otus
