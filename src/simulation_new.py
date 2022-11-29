@@ -11,15 +11,22 @@ from src.string_operations import rc
 
 
 def _exact_coverage_curve(
-    log_ptr, distances=None, oor=None, locations=None, size=1
+    # log_ptr,
+    log2_ptr,
+    distances=None,
+    oor=None,
+    locations=None,
+    size=1,
 ):
     # Coercion:
     if distances is not None:
         distances = np.array(distances)
     if locations is not None:
         locations = np.array(locations)
-    if log_ptr is not None:
-        log_ptr = np.array(log_ptr)
+    # if log_ptr is not None:
+    #     log_ptr = np.array(log_ptr)
+    if log2_ptr is not None:
+        log2_ptr = np.array(log2_ptr)
 
     if distances is not None and distances.ndim == 1:
         distances = distances[:, None]
@@ -49,7 +56,8 @@ def _exact_coverage_curve(
     else:
         oor_distances = np.array(distances)
 
-    return np.exp(1 - log_ptr * oor_distances)
+    # return np.exp(1 - log_ptr * oor_distances)
+    return np.exp2(1 - log2_ptr * oor_distances)
 
 
 def _exact_coverage_curve_genome(genome, log_ptr, db=None):
@@ -74,14 +82,20 @@ def _exact_coverage_curve_genome(genome, log_ptr, db=None):
     )
 
 
-def _coverage_16s_and_wgs(genome, log_ptr, db=None):
+def _coverage_16s_and_wgs(
+    # genome, log_ptr, db=None
+    genome,
+    log2_ptr,
+    db=None,
+):
     """Given a genome ID and a log-PTR, simulate 16S and WGS coverage simultaneously"""
     if db is None:
         db = RnaDB()
 
     # Input validation
     genome = str(genome)
-    log_ptr = np.array(log_ptr)
+    # log_ptr = np.array(log_ptr)
+    log2_ptr = np.array(log2_ptr)
     if not isinstance(db, RnaDB):
         raise TypeError("db must be an RnaDB")
 
@@ -89,13 +103,20 @@ def _coverage_16s_and_wgs(genome, log_ptr, db=None):
     size = db[genome]["size"].max()
     oor = db[genome]["oor_position"].max() / size
     rna_locations, rna_coverages = _exact_coverage_curve_genome(
-        genome, log_ptr, db=db
+        # genome, log_ptr, db=db
+        genome,
+        log2_ptr,
+        db=db,
     )
 
     # Pre-normalize WGS coverage
     wgs_locations = np.arange(0, 1, 1 / size)
     wgs_coverages = _exact_coverage_curve(
-        log_ptr=log_ptr, size=1, oor=oor, locations=wgs_locations
+        # log_ptr=log_ptr, size=1, oor=oor, locations=wgs_locations
+        log2_ptr=log2_ptr,
+        size=1,
+        oor=oor,
+        locations=wgs_locations,
     )
 
     return (rna_locations, rna_coverages), (wgs_locations, wgs_coverages)
@@ -105,7 +126,8 @@ def _sample_from_system(
     genome=None,
     rna_positions=None,
     wgs_probs=None,
-    log_ptr=None,
+    # log_ptr=None,
+    log2_ptr=None,
     multiplier=1,
     read_size=300,
     db=None,
@@ -116,10 +138,12 @@ def _sample_from_system(
     if db is None:
         db = RnaDB()
 
-    log_ptr = np.array(log_ptr).flatten()
+    # log_ptr = np.array(log_ptr).flatten()
+    log2_ptr = np.array(log2_ptr).flatten()
 
     # Input validation
-    if (genome is None or log_ptr is None) and (
+    # if (genome is None or log_ptr is None) and (
+    if (genome is None or log2_ptr is None) and (
         rna_positions is None or wgs_probs is None
     ):
         raise ValueError(
@@ -129,7 +153,10 @@ def _sample_from_system(
     # We can get positions/probabilities ourselves:
     elif wgs_probs is None or rna_positions is None:
         (rna_positions, _), (_, wgs_probs) = _coverage_16s_and_wgs(
-            genome=genome, log_ptr=log_ptr, db=db
+            # genome=genome, log_ptr=log_ptr, db=db
+            genome=genome,
+            log2_ptr=log2_ptr,
+            db=db,
         )
 
     # We know what happens if coverage is 0: no hits
@@ -140,7 +167,8 @@ def _sample_from_system(
     genome_size = len(wgs_probs)
     rna_indices = (rna_positions * genome_size).astype(int)
     lam = wgs_probs * multiplier
-    rna_hits = np.zeros(shape=(len(rna_indices), len(log_ptr)))
+    # rna_hits = np.zeros(shape=(len(rna_indices), len(log_ptr)))
+    rna_hits = np.zeros(shape=(len(rna_indices), len(log2_ptr)))
     if perfect:
         read_starts = lam  # Use expectations
     else:
@@ -196,8 +224,10 @@ def _generate_otu_table(rna_hits, genome, db=None):
 
 
 def simulate_samples(
-    log_abundances: pd.DataFrame,
-    log_ptrs: pd.DataFrame,
+    # log_abundances: pd.DataFrame,
+    abundances: pd.DataFrame,
+    # log_ptrs: pd.DataFrame,
+    log2_ptrs: pd.DataFrame,
     fasta_dir: str = None,
     fasta_ext: str = ".fna.gz",
     fastq_out_path: str = None,
@@ -211,20 +241,27 @@ def simulate_samples(
         db = RnaDB()
 
     # Ensure index and columns match for abundances and log_ptrs
-    log_abundances = log_abundances.reindex(
-        index=log_ptrs.index, columns=log_ptrs.columns
+    # log_abundances = log_abundances.reindex(
+    #     index=log_ptrs.index, columns=log_ptrs.columns
+    # )
+    # abundances = np.exp(log_abundances).fillna(0)
+    abundances = abundances.reindex(
+        index=log2_ptrs.index, columns=log2_ptrs.columns
     )
-    abundances = np.exp(log_abundances).fillna(0)
 
     out = []
-    for sample in log_ptrs.columns:
+    # for sample in log_ptrs.columns:
+    for sample in log2_ptrs.columns:
         sample_out = []
-        for genome in log_ptrs.index:
-            log_ptr = float(log_ptrs.loc[genome, sample])
+        # for genome in log_ptrs.index:
+        for genome in log2_ptrs.index:
+            # log_ptr = float(log_ptrs.loc[genome, sample])
+            log2_ptr = float(log2_ptrs.loc[genome, sample])
 
             starts, rna_hits = _sample_from_system(
                 genome=genome,
-                log_ptr=log_ptr,
+                # log_ptr=log_ptr,
+                log2_ptr=log2_ptr,
                 db=db,
                 read_size=read_size,
                 multiplier=multiplier * abundances.loc[genome, sample],
