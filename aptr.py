@@ -88,6 +88,11 @@ def get_args():
         default=0.0,
         help="L2 regularization coefficient on PTRs. Default: 0.0",
     )
+    parser.add_argument(
+        "--model_bias",
+        action="store_true",
+        help="Model amplicon bias",
+    )
     return parser.parse_args()
 
 
@@ -165,7 +170,14 @@ def run_aptr():
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
     print(f"Genomes: {solver.genome_ids}")
 
-    solver.train(lr=0.1, tolerance=1e-6, clip=True, l1=args.l1, l2=args.l2)
+    solver.train(
+        lr=0.1,
+        tolerance=1e-6,
+        clip=True,
+        l1=args.l1,
+        l2=args.l2,
+        model_bias=args.model_bias,
+    )
     inferred_ptrs = pd.DataFrame(
         data=solver.B_hat.exp2().detach().numpy(),
         index=solver.genome_ids,
@@ -176,6 +188,9 @@ def run_aptr():
         data=solver.A_hat.detach().numpy(),
         index=solver.genome_ids,
         columns=solver.sample_ids,
+    )
+    inferred_bias = pd.Series(
+        data=solver.bias.detach().numpy(), index=solver.md5s
     )
 
     # Figure out how many reads each estimate got
@@ -212,6 +227,7 @@ def run_aptr():
     inferred_ptrs.to_csv(f"{outdir}/inferred_ptrs.tsv", sep="\t")
     inferred_abundances.to_csv(f"{outdir}/inferred_abundances.tsv", sep="\t")
     n_reads_used.to_csv(f"{outdir}/n_reads_used.tsv", sep="\t")
+    inferred_bias.to_csv(f"{outdir}/inferred_bias.tsv", sep="\t")
 
     # Score PTRs: TODO
 
