@@ -98,14 +98,14 @@ class TorchSolver(torch.nn.Module):
 
         Assumes the following:
         A = abundance (n x s)
-        B = log-ptr (n x s)
+        B = log2-ptr (n x s)
         """
         C = self.members
         D = self.dists
         # G = C @ A + 1 - D @ B
         E = self.gene_to_seq
         # return E @ torch.exp(G)
-        return E @ (C @ A * torch.exp(1 - D @ B)) # for non-log abundances
+        return E @ (C @ A * torch.exp2(1 - D @ B))  # for non-log abundances
 
     def train(
         self,
@@ -114,7 +114,7 @@ class TorchSolver(torch.nn.Module):
         iterations: int = 1000,
         tolerance: int = 5,
         # loss_fn: Callable = torch.nn.functional.mse_loss,
-        loss_fn: Callable = torch.nn.functional.poisson_nll_loss,
+        loss_fn: Callable = torch.nn.PoissonNLLLoss(log_input=False),
         A_hat: torch.Tensor = None,
         B_hat: torch.Tensor = None,
         l1: float = 0,
@@ -146,6 +146,10 @@ class TorchSolver(torch.nn.Module):
         early_stop_counter = 0
         losses = []
 
+        # Add as attributes
+        self.optimizer = optimizer
+        self.loss_fn = loss_fn
+
         if verbose:
             print(
                 f"Initial:\t {loss_fn(self(self.A_hat, self.B_hat), self.coverages)}"
@@ -172,6 +176,8 @@ class TorchSolver(torch.nn.Module):
                 # Ensure reasonable PTR - e is generally enough
                 if clip:
                     self.B_hat.data = self.B_hat.clamp(0, 1)
+
+                self.A_hat.data = self.A_hat.clamp(0, None)  # Nonneg.
 
             if verbose:
                 print(f"Epoch {epoch}:\t {loss}")

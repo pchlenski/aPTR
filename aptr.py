@@ -8,6 +8,7 @@ import argparse
 import pandas as pd
 import pickle
 import numpy as np
+import torch
 from src.string_operations import rc
 from src.preprocess_samples import preprocess_samples
 from src.database import RnaDB
@@ -166,20 +167,23 @@ def run_aptr():
 
     solver.train(lr=0.1, tolerance=1e-6, clip=True, l1=args.l1, l2=args.l2)
     inferred_ptrs = pd.DataFrame(
-        data=solver.B_hat.exp().detach().numpy(),
+        data=solver.B_hat.exp2().detach().numpy(),
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
     inferred_abundances = pd.DataFrame(
-        data=solver.A_hat.exp().detach().numpy(),
+        # data=solver.A_hat.exp().detach().numpy(),
+        data=solver.A_hat.detach().numpy(),
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
 
     # Figure out how many reads each estimate got
     unconvolved_coverages = (
-        solver.dists @ solver.A_hat + 1 - solver.dists @ solver.B_hat
-    ).exp()
+        solver.dists
+        @ solver.A_hat
+        * torch.exp2(1 - solver.dists @ solver.B_hat)
+    )
     unconvolved_coverages_normed = (
         unconvolved_coverages / unconvolved_coverages.sum(axis=0)
     )
@@ -199,7 +203,7 @@ def run_aptr():
     # mask &= inferred_ptrs >= 1
     # mask &= inferred_ptrs <= 3
     inferred_ptrs = inferred_ptrs[mask]
-    inferred_abundances = inferred_abundances[mask]
+    # inferred_abundances = inferred_abundances[mask]
 
     # Dump again after training
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
