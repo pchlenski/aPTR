@@ -60,6 +60,7 @@ class TorchSolver(torch.nn.Module):
         self.genome_objects = genome_objs
         self.md5s = md5s
         self.otu_table = otus
+        self.normalize = normalize
 
         # All sizes
         self.s = otus.shape[1]
@@ -86,7 +87,7 @@ class TorchSolver(torch.nn.Module):
         # Compute coverages, etc
         self.coverages = torch.tensor(otus.values, dtype=torch.float32)
         self.coverages = torch.nan_to_num(self.coverages, nan=0)
-        if normalize:
+        if self.normalize:
             self.coverages /= torch.sum(self.coverages, axis=0, keepdim=True)
 
         self.abundances = abundances
@@ -122,8 +123,6 @@ class TorchSolver(torch.nn.Module):
         l2: float = 0,
         verbose: bool = True,
         clip: bool = False,
-        # normalize: bool = True,
-        normalize: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
@@ -163,7 +162,7 @@ class TorchSolver(torch.nn.Module):
 
                 # Forward pass
                 F_hat = self(self.A_hat, self.B_hat, self.bias)
-                if normalize:
+                if self.normalize:
                     F_hat = F_hat / F_hat.sum(
                         axis=0, keepdims=True
                     )  # normalize
