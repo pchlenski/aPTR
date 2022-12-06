@@ -48,10 +48,13 @@ class TorchSolver(torch.nn.Module):
         if len(genome_ids) == 0:
             raise ValueError("No genomes found")
 
+        if isinstance(otus, pd.Series):
+            otus = otus.to_frame()
+
         # In case genomes is a list of IDs; overwrites MD5s
         genome_objs, md5s, gene_to_seq = db.generate_genome_objects(genome_ids)
         otus = otus.reindex(md5s)
-        otus = otus.loc[:, otus.sum(axis=0) > 0]
+        otus = otus[otus.columns[otus.sum(axis=0) > 0]]  # Remove empty samples
 
         # Set a bunch of attribute values for use later
         self.db = db
@@ -101,11 +104,15 @@ class TorchSolver(torch.nn.Module):
         A = abundance (n x s)
         B = log2-ptr (n x s)
         """
+        if bias is None:
+            bias = self.bias
+
         C = self.members
         D = self.dists
         E = self.gene_to_seq
         G = C @ A * torch.exp2(1 - D @ B)
-        return torch.diag(bias) @ (E @ G)
+
+        return torch.diag(self.bias) @ (E @ G)
         # return E @ G
 
     def train(
@@ -180,7 +187,8 @@ class TorchSolver(torch.nn.Module):
                     self.B_hat.data = self.B_hat.clamp(0, 1)
 
                 self.A_hat.data = self.A_hat.clamp(0, None)  # Nonneg.
-                self.bias.data = self.bias.clamp(0, 1)  # Nonneg.
+                # self.bias.data = self.bias.clamp(0, 1)  # Nonneg.
+                self.bias.data = self.bias.clamp(0, None)  # Nonneg.
 
             if verbose:
                 print(f"Epoch {epoch}:\t {loss}")
