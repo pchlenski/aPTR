@@ -1,5 +1,1 @@
-biopython
-numpy
-pandas
-uuid
-torch # for torch_solver.py
+.
