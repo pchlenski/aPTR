@@ -110,7 +110,8 @@ class TorchSolver(torch.nn.Module):
         C = self.members
         D = self.dists
         E = self.gene_to_seq
-        G = C @ A * torch.exp2(1 - D @ B)
+        # G = C @ A * torch.exp2(1 - D @ B)
+        G = C @ A * torch.exp2(-D @ B)
 
         return torch.diag(self.bias) @ (E @ G)
         # return E @ G
