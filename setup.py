@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="aPTR",
@@ -7,8 +7,10 @@ setup(
     author="Philippe Chlenski",
     author_email="pac@cs.columbia.edu",
     url="http://www.github.com/pchlenski/aptr",
-    packages=["aptr"],
-    package_dir={"aptr": "src"},
+    # packages=find_packages(),
+    # packages=["aptr"],
+    packages=find_packages(where="aptr", exclude=["tests"]),
+    package_dir={"aptr": "aptr"},
     install_requires=[
         "biopython",
         "numpy",

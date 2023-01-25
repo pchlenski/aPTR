@@ -1,6 +1,5 @@
 """ Scripts for filtering DB by PCR primers """
 
-from importlib.abc import PathEntryFinder
 import pandas as pd
 import numpy as np
 import re
