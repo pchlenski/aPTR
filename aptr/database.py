@@ -5,7 +5,7 @@ import numpy as np
 from typing import Iterable, List, Dict, Tuple
 
 from aptr.oor_distance import oor_distance
-from .new_filter import filter_db
+from aptr.new_filter import filter_db
 import warnings
 
 

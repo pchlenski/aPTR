@@ -1,3 +1,5 @@
+data_dir = f"{__path__[0]}/../data"
+
 from .database import *
 from .new_filter import *
 from .oor_distance import *

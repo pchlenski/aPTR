@@ -4,10 +4,12 @@ import pandas as pd
 import numpy as np
 import re
 from hashlib import md5
+
+from aptr import data_dir
 from aptr.string_operations import rc, key, primers
 
 # Data directory (global variable)
-_DD = "../data/"
+# _DD = "../data/"
 
 
 # def _find_primer(seq: str, primer: str) -> list:
@@ -118,8 +120,8 @@ def _trim_primers(
 
 
 def filter_db(
-    path_to_dnaA: str = f"{_DD}allDnaA.tsv",
-    path_to_16s: str = f"{_DD}allSSU.tsv",
+    path_to_dnaA: str = f"{data_dir}/allDnaA.tsv",
+    path_to_16s: str = f"{data_dir}/allSSU.tsv",
     left_primer: str = None,
     right_primer: str = None,
     silent: bool = False,
@@ -248,7 +250,7 @@ def filter_db(
 
 def save_as_vsearch_db(
     db: pd.DataFrame,
-    output_file_path: str = f"{_DD}vsearch_db.fa",
+    output_file_path: str = f"{data_dir}/vsearch_db.fa",
     method: str = "seq",
 ) -> None:
     """
