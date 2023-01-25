@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Tuple, Callable
-from .database import RnaDB
+from aptr.database import RnaDB
 
 
 class TorchSolver(torch.nn.Module):

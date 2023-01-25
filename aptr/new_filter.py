@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import re
 from hashlib import md5
-from src.string_operations import rc, key, primers
+from aptr.string_operations import rc, key, primers
 
 # Data directory (global variable)
 _DD = "../data/"

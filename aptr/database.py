@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import Iterable, List, Dict, Tuple
 
-from src.oor_distance import oor_distance
+from aptr.oor_distance import oor_distance
 from .new_filter import filter_db
 import warnings
 
@@ -41,7 +41,9 @@ class RnaDB:
         )
         self.md5s = list(self.db["md5"].unique())
 
-    def find_genomes_by_md5(self, md5s: List[str], strict: bool = False) -> List[str]:
+    def find_genomes_by_md5(
+        self, md5s: List[str], strict: bool = False
+    ) -> List[str]:
         """
         Given an md5-hashed seq, return all genome IDs with that sequence
 

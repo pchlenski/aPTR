@@ -5,9 +5,9 @@ import pandas as pd
 from Bio import SeqIO
 from typing import Iterable, List, Tuple
 import gzip
-from src.database import RnaDB
-from src.oor_distance import oor_distance
-from src.string_operations import rc
+from aptr.database import RnaDB
+from aptr.oor_distance import oor_distance
+from aptr.string_operations import rc
 
 
 def _exact_coverage_curve(

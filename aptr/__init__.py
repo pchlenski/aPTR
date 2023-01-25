@@ -1,4 +1,3 @@
-from .coptr_utils import *
 from .database import *
 from .new_filter import *
 from .oor_distance import *

@@ -1,8 +1,6 @@
 from typing import Iterable
 import numpy as np
 
-__all__ = ["oor_distance"]
-
 
 def oor_distance(position, oor=0, size=1, normalized=True):
     """Returns shortest distance on a circular chromosome from a position to the OOR:"""
