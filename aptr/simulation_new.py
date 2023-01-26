@@ -58,7 +58,7 @@ def _exact_coverage_curve(
 
     # return np.exp(1 - log_ptr * oor_distances)
     # return np.exp2(1 - log2_ptr * oor_distances)
-    return np.exp2(-log2_ptr * oor_distances)
+    return np.exp2(-log2_ptr * oor_distances) # Half the size, uses abundance more reasonably
 
 
 def _exact_coverage_curve_genome(genome, log_ptr, db=None):
