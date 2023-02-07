@@ -58,7 +58,9 @@ def _exact_coverage_curve(
 
     # return np.exp(1 - log_ptr * oor_distances)
     # return np.exp2(1 - log2_ptr * oor_distances)
-    return np.exp2(-log2_ptr * oor_distances) # Half the size, uses abundance more reasonably
+    return np.exp2(
+        -log2_ptr * oor_distances
+    )  # Half the size, uses abundance more reasonably
 
 
 def _exact_coverage_curve_genome(genome, log_ptr, db=None):
@@ -184,7 +186,7 @@ def _sample_from_system(
     return read_starts, rna_hits
 
 
-def _generate_fastq_reads(starts, input_path, output_path=None, length=300):
+def _generate_fastq_reads(starts, input_path, ouput_path=None, length=300):
     # Read sequence
     if input_path.endswith("gz"):
         with gzip.open(input_path, "rt") as handle:
@@ -197,18 +199,20 @@ def _generate_fastq_reads(starts, input_path, output_path=None, length=300):
 
     # Put out fastq reads
     reads = []
-    for start in starts:
-        read = sequence[start : start + length]
-        if np.random.rand() < 0.5:
-            read = rc(read.upper())
-        reads.append(
-            f"@{input_path}:{start}:{start+length}\n{read}\n+\n{'#'*length}"
-        )
+    for idx, start in enumerate(starts):
+        start = start[0]
+        if start > 0:
+            read = sequence[start : start + length] * start
+            if np.random.rand() < 0.5:
+                read = rc(read.upper())
+            reads.append(
+                f"@{input_path}:{idx}:{idx+length}\n{read}\n+\n{'#'*length}"
+            )
 
-    # Write, if output path is provided:
-    if output_path is not None:
-        with open(output_path, "w") as handle:
-            handle.write("\n".join(reads))
+    # # Write, if output path is provided:
+    # if output_path is not None:
+    #     with open(output_path, "w") as handle:
+    #         handle.write("\n".join(reads))
 
     return reads
 
@@ -236,6 +240,7 @@ def simulate_samples(
     multiplier: float = 1,
     perfect: bool = False,
     read_size: int = 300,
+    shuffle: bool = True,
 ) -> pd.DataFrame:
     """Fully simulate n samples for a genome. Skips WGS if paths are not given."""
     if db is None:
@@ -254,6 +259,7 @@ def simulate_samples(
     # for sample in log_ptrs.columns:
     for sample in log2_ptrs.columns:
         sample_out = []
+        sample_fastq = []
         # for genome in log_ptrs.index:
         for genome in log2_ptrs.index:
             # log_ptr = float(log_ptrs.loc[genome, sample])
@@ -269,15 +275,22 @@ def simulate_samples(
                 perfect=perfect,
             )
             if fasta_dir is not None and fastq_out_path is not None:
-                _generate_fastq_reads(
-                    start=starts,
-                    genome=genome,
+                genome_reads = _generate_fastq_reads(
+                    starts=starts,
+                    # genome=genome,
                     input_path=f"{fasta_dir}/{genome}{fasta_ext}",
-                    output_path=fastq_out_path,
+                    # output_path=fastq_out_path,
                 )
+                sample_fastq.extend(genome_reads)
             sample_out.append(
                 _generate_otu_table(rna_hits=rna_hits, genome=genome, db=db)
             )
+        if fasta_dir is not None and fastq_out_path is not None:
+            if shuffle:
+                np.random.shuffle(sample_fastq)
+            with open(f"{fastq_out_path}/{sample}.fastq", "w") as handle:
+                handle.write("\n".join(sample_fastq))
+
         out.append(pd.DataFrame(sample_out).sum(axis=0))
     return pd.DataFrame(out).T
 
