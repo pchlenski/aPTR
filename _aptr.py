@@ -9,11 +9,11 @@ import pandas as pd
 import pickle
 import numpy as np
 import torch
-from src.string_operations import rc
-from src.preprocess_samples import preprocess_samples
-from src.database import RnaDB
-from src.new_filter import save_as_vsearch_db
-from src.torch_solver import TorchSolver
+from aptr.string_operations import rc
+from aptr.preprocess_samples import preprocess_samples
+from aptr.database import RnaDB
+from aptr.new_filter import save_as_vsearch_db
+from aptr.torch_solver import TorchSolver
 
 
 def get_args():
@@ -117,8 +117,8 @@ def run_aptr():
         db = pickle.load(open(db_pickle_path, "rb"))
     else:
         db = RnaDB(
-            path_to_dnaA="./data/allDnaA.tsv",
-            path_to_16s="./data/allSSU.tsv",
+            # path_to_dnaA="./data/allDnaA.tsv",
+            # path_to_16s="./data/allSSU.tsv",
             left_primer=args.adapter1,
             right_primer=args.adapter2,
         )

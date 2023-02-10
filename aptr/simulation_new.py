@@ -168,7 +168,7 @@ def _sample_from_system(
 
     # Sampled/expected WGS reads using Poisson distribution:
     genome_size = len(wgs_probs)
-    rna_indices = (rna_positions * genome_size).astype(int)
+    rna_indices = (rna_positions * genome_size).astype(np.int32)
     lam = wgs_probs * multiplier
     # rna_hits = np.zeros(shape=(len(rna_indices), len(log_ptr)))
     rna_hits = np.zeros(shape=(len(rna_indices), len(log2_ptr)))
@@ -186,7 +186,15 @@ def _sample_from_system(
     return read_starts, rna_hits
 
 
-def _generate_fastq_reads(starts, input_path, ouput_path=None, length=300):
+def _read(seq, start, length, qual="I", input_path="input"):
+    """Given a sequence, return a read"""
+    read = seq[start : start + length]
+    return f"@{input_path}:{start}:{start+length}\n{read}\n+\n{qual*length}"
+
+
+def _generate_fastq_reads(
+    starts, input_path, qual="I", length=300, downsample=1
+):
     # Read sequence
     if input_path.endswith("gz"):
         with gzip.open(input_path, "rt") as handle:
@@ -194,25 +202,66 @@ def _generate_fastq_reads(starts, input_path, ouput_path=None, length=300):
     else:
         sequence = SeqIO.parse(input_path, "fasta").__next__().seq
 
+    # Coerce starts to integer array
+    starts = np.array(starts, dtype=np.int32)
+
     # Add circularity and make lowercase
     sequence = f"{sequence}{sequence[:length]}".lower()
 
-    # Put out fastq reads
-    reads = []
-    for idx, start in enumerate(starts):
-        start = start[0]
-        if start > 0:
-            read = sequence[start : start + length] * start
-            if np.random.rand() < 0.5:
-                read = rc(read.upper())
-            reads.append(
-                f"@{input_path}:{idx}:{idx+length}\n{read}\n+\n{'#'*length}"
-            )
+    # Transform starts variable from a count vector to a list of starts
+    seqlen = len(starts)
+    indices = np.arange(seqlen, dtype=np.int32)
+    starts = np.repeat(indices, starts[:, 0])
 
-    # # Write, if output path is provided:
-    # if output_path is not None:
-    #     with open(output_path, "w") as handle:
-    #         handle.write("\n".join(reads))
+    # Downsample without looping
+    starts = starts[np.random.rand(len(starts)) < downsample]
+    rc_random = np.random.rand(len(starts))
+    starts_fwd = starts[rc_random < 0.5]
+    starts_rev = starts[rc_random >= 0.5]
+
+    # # Generate reads
+    # reads_fwd = [
+    #     _read(
+    #         sequence,
+    #         start=start,
+    #         length=length,
+    #         qual=qual,
+    #         input_path=input_path,
+    #     )
+    #     for start in starts_fwd
+    # ]
+    # reads_rev = [
+    #     _read(
+    #         rc(sequence.upper()),
+    #         start=start,
+    #         length=length,
+    #         qual=qual,
+    #         input_path=input_path,
+    #     )
+    #     for start in starts_rev
+    # ]
+
+    # return reads_fwd + reads_rev
+
+    # Same code but more concise
+
+    reads = []
+
+    for starts_set, seq in zip(
+        (starts_fwd, starts_rev), (sequence, rc(sequence.upper()))
+    ):
+        reads.extend(
+            [
+                _read(
+                    seq,
+                    start=start,
+                    length=length,
+                    qual=qual,
+                    input_path=input_path,
+                )
+                for start in starts_set
+            ]
+        )
 
     return reads
 
@@ -229,9 +278,7 @@ def _generate_otu_table(rna_hits, genome, db=None):
 
 
 def simulate_samples(
-    # log_abundances: pd.DataFrame,
     abundances: pd.DataFrame,
-    # log_ptrs: pd.DataFrame,
     log2_ptrs: pd.DataFrame,
     fasta_dir: str = None,
     fasta_ext: str = ".fna.gz",
@@ -240,17 +287,13 @@ def simulate_samples(
     multiplier: float = 1,
     perfect: bool = False,
     read_size: int = 300,
+    downsample: float = 1,
     shuffle: bool = True,
 ) -> pd.DataFrame:
     """Fully simulate n samples for a genome. Skips WGS if paths are not given."""
     if db is None:
         db = RnaDB()
 
-    # Ensure index and columns match for abundances and log_ptrs
-    # log_abundances = log_abundances.reindex(
-    #     index=log_ptrs.index, columns=log_ptrs.columns
-    # )
-    # abundances = np.exp(log_abundances).fillna(0)
     abundances = abundances.reindex(
         index=log2_ptrs.index, columns=log2_ptrs.columns
     )
@@ -277,9 +320,9 @@ def simulate_samples(
             if fasta_dir is not None and fastq_out_path is not None:
                 genome_reads = _generate_fastq_reads(
                     starts=starts,
-                    # genome=genome,
                     input_path=f"{fasta_dir}/{genome}{fasta_ext}",
-                    # output_path=fastq_out_path,
+                    length=read_size,
+                    downsample=downsample,
                 )
                 sample_fastq.extend(genome_reads)
             sample_out.append(
@@ -288,7 +331,8 @@ def simulate_samples(
         if fasta_dir is not None and fastq_out_path is not None:
             if shuffle:
                 np.random.shuffle(sample_fastq)
-            with open(f"{fastq_out_path}/{sample}.fastq", "w") as handle:
+            with open(f"{fastq_out_path}/Sample_{sample}.fastq", "w") as handle:
+                print(f"Writing Sample_{sample}.fastq")
                 handle.write("\n".join(sample_fastq))
 
         out.append(pd.DataFrame(sample_out).sum(axis=0))
@@ -310,7 +354,6 @@ def make_tables(
     n = len(genomes)
     s = len(samples)
     mask = np.random.rand(n, s) > sparsity
-    # log_ptrs = pd.DataFrame(
     log2_ptrs = pd.DataFrame(
         index=genomes,
         columns=samples,
@@ -326,7 +369,6 @@ def make_tables(
     )
 
     otus = simulate_samples(
-        # log_abundances=log_abundances, log_ptrs=log_ptrs, db=db, **kwargs
         abundances=abundances,
         log2_ptrs=log2_ptrs,
         db=db,
