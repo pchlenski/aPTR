@@ -11,3 +11,6 @@ experiments/
 notebooks/scratch*
 notebooks/.ipynb_checkpoints
 aPTR.egg-info/
+*.fastq
+*.fastq.gz
+wget*

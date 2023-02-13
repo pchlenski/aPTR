@@ -10,7 +10,7 @@ _VSEARCH = "vsearch"
 # System variables
 _N_THREADS = 4
 _FASTQ_MAX_EE = 1.0
-_FASTQ_MIN_LEN = 225
+_FASTQ_MIN_LEN = 50
 _FASTQ_MAX_NS = 0
 _FASTQ_QMAX = 93
 
