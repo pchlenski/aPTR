@@ -93,6 +93,11 @@ def get_args():
         action="store_true",
         help="Model amplicon bias",
     )
+    parser.add_argument(
+        "--noclip",
+        action="store_true",
+        help="Don't clip PTR to [1, 2]",
+    )
     return parser.parse_args()
 
 

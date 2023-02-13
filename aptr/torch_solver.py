@@ -213,12 +213,3 @@ class TorchSolver(torch.nn.Module):
             best_B_hat.detach().numpy(),
             losses,
         )
-
-# some colors i want to use - tufte colors
-colors = {
-    "blue": "0097A7",
-    "orange": "FFAB40",
-    "red": "BE1E2D",
-    "green": "",
-    "purple": "6A1B9A",
-}
