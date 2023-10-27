@@ -58,9 +58,7 @@ def _exact_coverage_curve(
 
     # return np.exp(1 - log_ptr * oor_distances)
     # return np.exp2(1 - log2_ptr * oor_distances)
-    return np.exp2(
-        -log2_ptr * oor_distances
-    )  # Half the size, uses abundance more reasonably
+    return np.exp2(-log2_ptr * oor_distances)  # Half the size, uses abundance more reasonably
 
 
 def _exact_coverage_curve_genome(genome, log_ptr, db=None):
@@ -146,12 +144,8 @@ def _sample_from_system(
 
     # Input validation
     # if (genome is None or log_ptr is None) and (
-    if (genome is None or log2_ptr is None) and (
-        rna_positions is None or wgs_probs is None
-    ):
-        raise ValueError(
-            "Must provide either (genome and log_ptr) or (rna_positions and wgs_probs)"
-        )
+    if (genome is None or log2_ptr is None) and (rna_positions is None or wgs_probs is None):
+        raise ValueError("Must provide either (genome and log_ptr) or (rna_positions and wgs_probs)")
 
     # We can get positions/probabilities ourselves:
     elif wgs_probs is None or rna_positions is None:
@@ -179,9 +173,7 @@ def _sample_from_system(
 
     # Figure out which hits overlap 16S RNAs:
     for i, rna_index in enumerate(rna_indices):
-        rna_hits[i, :] = read_starts[rna_index : rna_index + read_size].sum(
-            axis=0
-        )
+        rna_hits[i, :] = read_starts[rna_index : rna_index + read_size].sum(axis=0)
 
     return read_starts, rna_hits
 
@@ -192,9 +184,7 @@ def _read(seq, start, length, qual="I", input_path="input"):
     return f"@{input_path}:{start}:{start+length}\n{read}\n+\n{qual*length}"
 
 
-def _generate_fastq_reads(
-    starts, input_path, qual="I", length=300, downsample=1
-):
+def _generate_fastq_reads(starts, input_path, qual="I", length=300, downsample=1):
     # Read sequence
     if input_path.endswith("gz"):
         with gzip.open(input_path, "rt") as handle:
@@ -247,9 +237,7 @@ def _generate_fastq_reads(
 
     reads = []
 
-    for starts_set, seq in zip(
-        (starts_fwd, starts_rev), (sequence, rc(sequence.upper()))
-    ):
+    for starts_set, seq in zip((starts_fwd, starts_rev), (sequence, rc(sequence.upper()))):
         reads.extend(
             [
                 _read(
@@ -294,9 +282,7 @@ def simulate_samples(
     if db is None:
         db = RnaDB()
 
-    abundances = abundances.reindex(
-        index=log2_ptrs.index, columns=log2_ptrs.columns
-    )
+    abundances = abundances.reindex(index=log2_ptrs.index, columns=log2_ptrs.columns)
 
     out = []
     # for sample in log_ptrs.columns:
@@ -325,9 +311,7 @@ def simulate_samples(
                     downsample=downsample,
                 )
                 sample_fastq.extend(genome_reads)
-            sample_out.append(
-                _generate_otu_table(rna_hits=rna_hits, genome=genome, db=db)
-            )
+            sample_out.append(_generate_otu_table(rna_hits=rna_hits, genome=genome, db=db))
         if fasta_dir is not None and fastq_out_path is not None:
             if shuffle:
                 np.random.shuffle(sample_fastq)
@@ -364,7 +348,7 @@ def make_tables(
     abundances = pd.DataFrame(
         index=genomes,
         columns=samples,
-        data=mask * np.random.lognormal(size=(n, s)),
+        data=mask * np.random.exponential(size=(n, s)),
         dtype=float,
     )
 
