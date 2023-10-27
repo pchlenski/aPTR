@@ -20,7 +20,6 @@ class TorchSolver(torch.nn.Module):
         md5s: List[str] = None,
         abundances: pd.DataFrame = None,
         ptrs: pd.DataFrame = None,
-        # normalize: bool = True,
         normalize: bool = False,
         db: RnaDB = None,
     ):
@@ -66,14 +65,14 @@ class TorchSolver(torch.nn.Module):
         self.normalize = normalize
 
         # All sizes
-        self.s = otus.shape[1]
-        self.n = len(genome_ids)
-        self.m = np.sum([len(g["pos"]) for g in genome_objs])
-        self.k = len(md5s)
+        self.S = otus.shape[1]
+        self.T = len(genome_ids)
+        self.G = np.sum([len(g["pos"]) for g in genome_objs])
+        self.N = len(md5s)
 
-        # Compute membership(C), distance (D) and gene_to_seq (E) matrices
-        self.members = torch.zeros(size=(self.m, self.n))
-        self.dists = torch.zeros(size=(self.m, self.n))
+        # Compute membership(M), distance (D) and sequence-sharng (S) matrices
+        self.members = torch.zeros(size=(self.G, self.T))
+        self.dists = torch.zeros(size=(self.G, self.T))
         self.gene_to_seq = torch.tensor(gene_to_seq.T, dtype=torch.float32)
         i = 0
 
@@ -96,25 +95,25 @@ class TorchSolver(torch.nn.Module):
         self.abundances = abundances
         self.ptrs = ptrs
 
-    def forward(self, A, B, bias=None) -> torch.Tensor:
+    def forward(self, A, R, bias=None) -> torch.Tensor:
         """
         Compute convolved coverage vector (= observed coverages)
 
         Assumes the following:
-        A = abundance (n x s)
-        B = log2-ptr (n x s)
+        A = abundance (T x S)
+        R = log-ptr (T x S)
         """
         if bias is None:
             bias = self.bias
 
-        C = self.members
+        M = self.members
         D = self.dists
-        E = self.gene_to_seq
-        # G = C @ A * torch.exp2(1 - D @ B)
-        G = C @ A * torch.exp2(-D @ B)
+        S = self.gene_to_seq
+        f = torch.diag(bias)
 
-        return torch.diag(self.bias) @ (E @ G)
-        # return E @ G
+        Y_unconvolved = M @ A * torch.exp(-D @ R)
+
+        return f @ (S @ Y_unconvolved)
 
     def train(
         self,
@@ -122,36 +121,35 @@ class TorchSolver(torch.nn.Module):
         epochs: int = 500,
         iterations: int = 1000,
         tolerance: int = 5,
-        # loss_fn: Callable = torch.nn.functional.mse_loss,
         loss_fn: Callable = torch.nn.PoissonNLLLoss(log_input=False),
         A_hat: torch.Tensor = None,
-        B_hat: torch.Tensor = None,
+        R_hat: torch.Tensor = None,
         model_bias: bool = True,
-        l1: float = 0,
-        l2: float = 0,
+        alpha1: float = 0,
+        alpha2: float = 0,
         verbose: bool = True,
         clip: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """Initialize and train with SGD + Adam"""
 
-        # Initialize a_hat and b_hat
+        # Initialize A_hat and R_hat
         if A_hat is None:
-            A_hat = torch.ones(size=(self.n, self.s), requires_grad=True)
+            A_hat = torch.ones(size=(self.T, self.S), requires_grad=True)
         elif type(A_hat) is np.ndarray:
-            A_hat = A_hat.reshape(self.s, self.n)
+            A_hat = A_hat.reshape(self.T, self.S)
             A_hat = torch.from_numpy(A_hat).float().requires_grad_(True)
-        if B_hat is None:
-            B_hat = torch.ones(size=(self.n, self.s), requires_grad=True)
-        elif type(B_hat) is np.ndarray:
-            B_hat = B_hat.reshape(self.n, self.s)
-            B_hat = torch.from_numpy(B_hat).float().requires_grad_(True)
+        if R_hat is None:
+            R_hat = torch.ones(size=(self.T, self.S), requires_grad=True)
+        elif type(R_hat) is np.ndarray:
+            R_hat = R_hat.reshape(self.T, self.S)
+            R_hat = torch.from_numpy(R_hat).float().requires_grad_(True)
         self.A_hat = A_hat
-        self.B_hat = B_hat
-        self.bias = torch.ones(self.k, requires_grad=model_bias)
+        self.R_hat = R_hat
+        self.bias = torch.ones(self.N, requires_grad=model_bias)
 
         # Initialize optimizer and counters
-        optimizer = torch.optim.Adam([self.A_hat, self.B_hat, self.bias], lr=lr)
-        best_loss, best_A_hat, best_B_hat = torch.inf, None, None
+        optimizer = torch.optim.Adam([self.A_hat, self.R_hat, self.bias], lr=lr)
+        best_loss, best_A_hat, best_R_hat = torch.inf, None, None
         early_stop_counter = 0
         losses = []
 
@@ -160,35 +158,31 @@ class TorchSolver(torch.nn.Module):
         self.loss_fn = loss_fn
 
         if verbose:
-            print(
-                f"Initial:\t {loss_fn(self(self.A_hat, self.B_hat, self.bias), self.coverages)}"
-            )
+            print(f"Initial:\t {loss_fn(self(self.A_hat, self.R_hat, self.bias), self.coverages)}")
 
+        Y = self.coverages
         for epoch in range(epochs):
             for _ in range(iterations):
                 optimizer.zero_grad()
 
                 # Forward pass
-                F_hat = self(self.A_hat, self.B_hat, self.bias)
+                Y_hat = self(self.A_hat, self.R_hat, self.bias)
                 if self.normalize:
-                    F_hat = F_hat / F_hat.sum(
-                        axis=0, keepdims=True
-                    )  # normalize
-                loss = loss_fn(F_hat, self.coverages)
+                    Y_hat = Y_hat / Y_hat.sum(axis=0, keepdims=True)  # normalize
+                loss = loss_fn(Y_hat, Y)
 
-                # Regularize: L1 for A, L2 for B
-                loss += l1 * torch.norm(self.A_hat, p=1)
-                loss += l2 * torch.norm(self.B_hat, p=2)
+                # Regularize: L1 for A, L2 for R
+                loss += alpha1 * torch.norm(self.A_hat, p=1)
+                loss += alpha2 * torch.norm(self.R_hat, p=2)
                 losses.append(loss.item())
                 loss.backward()
                 optimizer.step()
 
                 # Ensure reasonable PTR - e is generally enough
                 if clip:
-                    self.B_hat.data = self.B_hat.clamp(0, 1)
+                    self.R_hat.data = self.R_hat.clamp(0, 1)
 
                 self.A_hat.data = self.A_hat.clamp(0, None)  # Nonneg.
-                # self.bias.data = self.bias.clamp(0, 1)  # Nonneg.
                 self.bias.data = self.bias.clamp(0, None)  # Nonneg.
 
             if verbose:
@@ -196,10 +190,10 @@ class TorchSolver(torch.nn.Module):
 
             # Early stopping, per-epoch
             if best_loss > loss:
-                best_loss, best_A_hat, best_B_hat = (
+                best_loss, best_A_hat, best_R_hat = (
                     loss,
                     self.A_hat.clone(),
-                    self.B_hat.clone(),
+                    self.R_hat.clone(),
                 )
                 early_stop_counter = 0
             else:
@@ -210,6 +204,6 @@ class TorchSolver(torch.nn.Module):
 
         return (
             best_A_hat.detach().numpy(),
-            best_B_hat.detach().numpy(),
+            best_R_hat.detach().numpy(),
             losses,
         )

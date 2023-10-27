@@ -57,7 +57,4 @@ primers = {
 def rc(seq):
     """Reverse complement of a DNA sequence. Assumes lowercase"""
     seq = seq.lower()
-    # return seq.translate(str.maketrans("acgt", "tgca"))[::-1]
-    return seq.translate(str.maketrans("nxdhvbrymwksacgt", "nxhdbvyrkwmstgca"))[
-        ::-1
-    ]  # Allow ambiguous bases
+    return seq.translate(str.maketrans("nxdhvbrymwksacgt", "nxhdbvyrkwmstgca"))[::-1]

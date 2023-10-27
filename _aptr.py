@@ -130,9 +130,7 @@ def run_aptr():
         if len(db.db) < 10:
             print("Warning: DB is very small. Perhaps try reversing a primer?")
         elif np.median([len(x) for x in db.db["16s_sequence"]]) < 100:
-            print(
-                "Warning: Sequences are very short. Perhaps try reversing a primer?"
-            )
+            print("Warning: Sequences are very short. Perhaps try reversing a primer?")
         db_pickle_path = f"{outdir}/db.pkl"
         db_fasta_path = f"{outdir}/db.fasta"
         try:
@@ -179,12 +177,12 @@ def run_aptr():
         lr=0.1,
         tolerance=1e-6,
         clip=True,
-        l1=args.l1,
-        l2=args.l2,
+        alpha1=args.l1,
+        alpha2=args.l2,
         model_bias=args.model_bias,
     )
     inferred_ptrs = pd.DataFrame(
-        data=solver.B_hat.exp2().detach().numpy(),
+        data=solver.R_hat.exp2().detach().numpy(),
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
@@ -194,23 +192,12 @@ def run_aptr():
         index=solver.genome_ids,
         columns=solver.sample_ids,
     )
-    inferred_bias = pd.Series(
-        data=solver.bias.detach().numpy(), index=solver.md5s
-    )
+    inferred_bias = pd.Series(data=solver.bias.detach().numpy(), index=solver.md5s)
 
     # Figure out how many reads each estimate got
-    unconvolved_coverages = (
-        solver.dists
-        @ solver.A_hat
-        * torch.exp2(1 - solver.dists @ solver.B_hat)
-    )
-    unconvolved_coverages_normed = (
-        unconvolved_coverages / unconvolved_coverages.sum(axis=0)
-    )
-    raw_reads = (
-        unconvolved_coverages_normed.detach().numpy()
-        * solver.otu_table.sum(axis=0).values
-    )
+    unconvolved_coverages = solver.dists @ solver.A_hat * torch.exp2(1 - solver.dists @ solver.R_hat)
+    unconvolved_coverages_normed = unconvolved_coverages / unconvolved_coverages.sum(axis=0)
+    raw_reads = unconvolved_coverages_normed.detach().numpy() * solver.otu_table.sum(axis=0).values
     reads_per_genome = np.linalg.pinv(solver.members) @ raw_reads
     n_reads_used = pd.DataFrame(
         data=reads_per_genome,

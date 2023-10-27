@@ -6,13 +6,9 @@ def oor_distance(position, oor=0, size=1, normalized=True):
     """Returns shortest distance on a circular chromosome from a position to the OOR:"""
     # Input validation
     # Handle ragged arrays:
-    if isinstance(position, list) and np.all(
-        [isinstance(x, Iterable) for x in position]
-    ):
+    if isinstance(position, list) and np.all([isinstance(x, Iterable) for x in position]):
         print("Warning: Converting list to numpy array")
-        p_out = np.nan * np.ones(
-            shape=(len(position), np.max([len(p) for p in position]))
-        )
+        p_out = np.nan * np.ones(shape=(len(position), np.max([len(p) for p in position])))
         for i, p in enumerate(position):
             p_out[i, : len(p)] = p
         position = p_out
@@ -36,7 +32,4 @@ def oor_distance(position, oor=0, size=1, normalized=True):
     dists2 = size - dists1
     dists = np.minimum(dists1, dists2)
 
-    if normalized:
-        return 2 * dists / size[:, None]  # broadcast
-    else:
-        return dists
+    return 2 * dists / size[:, None] if normalized else dists

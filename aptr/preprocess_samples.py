@@ -16,12 +16,7 @@ _FASTQ_QMAX = 93
 
 
 def _exec(
-    *args,
-    verbose: bool = False,
-    cmdfile: str = sys.stdout,
-    logfile: str = None,
-    errfile: str = None,
-    **kwargs,
+    *args, verbose: bool = False, cmdfile: str = sys.stdout, logfile: str = None, errfile: str = None, **kwargs
 ) -> bool:
     """
     Utility function to log and execute system calls
@@ -45,10 +40,6 @@ def _exec(
     --------
     bool
         True if the command executed successfully, False otherwise.
-
-    Raises:
-    -------
-    TODO
     """
 
     # Coerce to string
@@ -73,14 +64,7 @@ def _exec(
 
 
 def _process_sample(
-    prefix: str,
-    suffix: str,
-    adapter1: str,
-    adapter2: str,
-    in_dir: str,
-    out_dir: str,
-    paired: bool,
-    **exec_args,
+    prefix: str, suffix: str, adapter1: str, adapter2: str, in_dir: str, out_dir: str, paired: bool, **exec_args
 ) -> bool:
     """
     For a single (paired) read file: cut adapters, filter, dereplicate reads.
@@ -110,10 +94,6 @@ def _process_sample(
     --------
     bool
         True if the command executed successfully, False otherwise.
-
-    Raises:
-    -------
-    TODO
     """
 
     # Shared values
@@ -123,9 +103,7 @@ def _process_sample(
     filtered_reads_path = f"{out_dir}/filtered/{prefix}.filtered.fasta"
     derep_path = f"{out_dir}/derep/{prefix}.derep.fasta"
 
-    use_cutadapt = (adapter1 is not None and adapter2 is not None) and (
-        adapter1 != "" and adapter2 != ""
-    )
+    use_cutadapt = (adapter1 is not None and adapter2 is not None) and (adapter1 != "" and adapter2 != "")
 
     # For paired files: cut adapters individually, then merge pairs
     if paired:
@@ -145,7 +123,8 @@ def _process_sample(
                 f"-j {_N_THREADS}",
                 f"{path1} {path2}",
                 f"> {cutadapt_log}",
-            )  # Do not log with _exec() because we want a separate cutadapt log
+            )
+            # Do not log with _exec() because we want a separate cutadapt log
         else:
             _exec(f"cp {path1} {out1}", **exec_args)
             _exec(f"cp {path2} {out2}", **exec_args)
@@ -257,22 +236,12 @@ def preprocess_samples(
     --------
     bool
         True if the command executed successfully, False otherwise.
-
-    Raises:
-    -------
-    TODO
     """
 
     # Ensure all directories exist
     reads_dir = f"{path}/reads"
     files = os.listdir(reads_dir)
-    for dir in [
-        f"{outdir}/trimmed",
-        f"{outdir}/merged",
-        f"{outdir}/stats",
-        f"{outdir}/filtered",
-        f"{outdir}/derep",
-    ]:
+    for dir in [f"{outdir}/trimmed", f"{outdir}/merged", f"{outdir}/stats", f"{outdir}/filtered", f"{outdir}/derep"]:
         try:
             os.mkdir(dir)
         except FileExistsError:
@@ -283,21 +252,14 @@ def preprocess_samples(
 
     if log:
         exec_args.update(
-            {
-                "logfile": f"{outdir}/log.txt",
-                "errfile": f"{outdir}/err.txt",
-                "cmdfile": f"{outdir}/commands.txt",
-            }
+            {"logfile": f"{outdir}/log.txt", "errfile": f"{outdir}/err.txt", "cmdfile": f"{outdir}/commands.txt"}
         )
 
     else:
         exec_args.update({"logfile": None, "errfile": None, "cmdfile": None})
 
     if readcounts_path is None:
-        _exec(
-            f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt",
-            **exec_args,
-        )
+        _exec(f"echo 'left:\t{adapter1}\nright:\t{adapter2}' > {outdir}/adapters.txt", **exec_args)
 
         # Step 1: categorize files
         endings = [".fq.gz", ".fastq.gz", ".fq", ".fastq"]
@@ -307,7 +269,6 @@ def preprocess_samples(
         for filename in files:
             for suffix in endings:
                 if filename.endswith(suffix):
-
                     # Get prefix
                     prefix = filename.rstrip(suffix)
                     for x in endings:
