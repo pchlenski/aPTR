@@ -37,22 +37,16 @@ def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent
         return ""
     else:
         # Look up named primers
-        if left in primers:
-            left = primers[left]
-        if right in primers:
-            right = primers[right]
+        left = primers[left] if left in primers else left
+        right = primers[right] if right in primers else right
 
         # The rest is a regex operation
         fwd_primer = "".join([key[x] for x in left.lower()])
-        if reverse:
-            right = rc(right)  # reverse complement of right primer
+        right = rc(right) if reverse else right
         rev_primer = "".join([key[x] for x in right.lower()])
         pattern = re.compile(f"({fwd_primer}.*{rev_primer})")
         match = pattern.search(seq)
-        if match:
-            return match.group(1)
-        else:
-            return ""
+        return match.group(1) if match else ""
 
 
 def filter_db(
@@ -109,10 +103,7 @@ def filter_db(
     table = table[table["filtered_seq"].str.len() > 0]
 
     if not silent:
-        print(
-            np.sum(table["filtered_seq"] != "") / original_len,
-            "sequences remain after trimming",
-        )
+        print(np.sum(table["filtered_seq"] != "") / original_len, "sequences remain after trimming")
 
     # Iteratively filter on sequence
     diff = 1
@@ -132,10 +123,7 @@ def filter_db(
         table = table_filtered
 
     if not silent:
-        print(
-            np.sum(table["filtered_seq"] != "") / original_len,
-            "sequences remain after filtering",
-        )
+        print(np.sum(table["filtered_seq"] != "") / original_len, "sequences remain after filtering")
 
     # Clean up and return table
     table = table[
@@ -158,9 +146,7 @@ def filter_db(
 
 
 def save_as_vsearch_db(
-    db: pd.DataFrame,
-    output_file_path: str = f"{data_dir}/vsearch_db.fa",
-    method: str = "seq",
+    db: pd.DataFrame, output_file_path: str = f"{data_dir}/vsearch_db.fa", method: str = "seq"
 ) -> None:
     """
     Given a dataframe of candidate sequences, save in VSEARCH-compatible format.
