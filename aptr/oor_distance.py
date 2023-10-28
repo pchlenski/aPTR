@@ -31,5 +31,6 @@ def oor_distance(position, oor=0, size=1, normalized=True):
     """Returns shortest distance on a circular chromosome from a position to the OOR:"""
 
     position, oor, size = _validate_oor_distance_inputs(position, oor, size)
-    dists = np.minimum(np.abs(position - oor[:, None]), size - dists1)
+    oor = oor[:, None]
+    dists = np.minimum(np.abs(position - oor), size - np.abs(position - oor))
     return 2 * dists / size[:, None] if normalized else dists
