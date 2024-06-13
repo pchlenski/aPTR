@@ -50,8 +50,9 @@ def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent
 
 
 def filter_db(
-    path_to_dnaA: str = f"{data_dir}/allDnaA.tsv",
-    path_to_16s: str = f"{data_dir}/allSSU.tsv",
+    # path_to_dnaA: str = f"{data_dir}/allDnaA.tsv",
+    # path_to_16s: str = f"{data_dir}/allSSU.tsv",
+    path_to_table: str = f"{data_dir}/patric_table.tsv",
     left_primer: str = None,
     right_primer: str = None,
     silent: bool = False,
@@ -61,10 +62,8 @@ def filter_db(
 
     Args:
     -----
-    path_to_dnaA: str
-        Path to the DnaA gene table.
-    path_to_16s: str
-        Path to the 16S rRNA gene table.
+    path_to_patric_table: str
+        Path to the PATRIC genomic data table.
     left_primer: str
         Primer with which to trim the sequence from the 3' end.
     right_primer: str
@@ -77,18 +76,19 @@ def filter_db(
         no longer have two or more unique candidate sequences after trimming.
     """
 
-    # Get tables
-    dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
-    ssu_table = pd.read_table(path_to_16s, dtype={"genome.genome_id": str, "feature.na_sequence": str})
+    # # Get tables
+    # dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
+    # ssu_table = pd.read_table(path_to_16s, dtype={"genome.genome_id": str, "feature.na_sequence": str})
 
-    # Clean up by DnaA:
-    dnaA_table = dnaA_table[dnaA_table["feature.product"] == "Chromosomal replication initiator protein DnaA"]
-    dnaA_table = dnaA_table.drop_duplicates("genome.genome_id")
+    # # Clean up by DnaA:
+    # dnaA_table = dnaA_table[dnaA_table["feature.product"] == "Chromosomal replication initiator protein DnaA"]
+    # dnaA_table = dnaA_table.drop_duplicates("genome.genome_id")
 
-    # Merge tables
-    table = pd.merge(
-        ssu_table, dnaA_table, how="inner", on=["genome.genome_id", "feature.accession"], suffixes=["_16s", "_dnaA"]
-    )
+    # # Merge tables
+    # table = pd.merge(
+    #     ssu_table, dnaA_table, how="inner", on=["genome.genome_id", "feature.accession"], suffixes=["_16s", "_dnaA"]
+    # )
+    table = pd.read_table(path_to_table, dtype={"genome.genome_id": str, "feature.na_sequence": str})
 
     original_len = len(table)
 
@@ -129,6 +129,7 @@ def filter_db(
     table = table[
         [
             "genome.genome_id",
+            "genome.genome_name",
             "genome.contigs_16s",
             "feature.accession",
             "feature.patric_id_16s",
@@ -138,7 +139,17 @@ def filter_db(
             "filtered_seq",
         ]
     ]
-    table.columns = ["genome", "n_contigs", "contig", "feature", "16s_position", "oor_position", "size", "16s_sequence"]
+    table.columns = [
+        "genome",
+        "genome_name",
+        "n_contigs",
+        "contig",
+        "feature",
+        "16s_position",
+        "oor_position",
+        "size",
+        "16s_sequence",
+    ]
 
     table.loc[:, "md5"] = [md5(str(x).encode("utf-8")).hexdigest() for x in table["16s_sequence"]]
 

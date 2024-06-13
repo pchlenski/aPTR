@@ -24,26 +24,15 @@ class RnaDB:
             self.db = pd.read_pickle(load)
         else:
             self.db = filter_db(**kwargs)
-            if "left_primer" in kwargs:
-                self.left_primer = kwargs["left_primer"]
-            else:
-                self.left_primer = None
-
-            if "right_primer" in kwargs:
-                self.right_primer = kwargs["right_primer"]
-            else:
-                self.right_primer = None
+            self.left_primer = kwargs["left_primer"] if "left_primer" in kwargs else None
+            self.right_primer = kwargs["right_primer"] if "right_primer" in kwargs else None
 
         # Set some other useful attributes
         self.genomes = list(self.db["genome"].unique())
-        self.complete_genomes = list(
-            self.db[self.db["n_contigs"] == 1]["genome"].unique()
-        )
+        self.complete_genomes = list(self.db[self.db["n_contigs"] == 1]["genome"].unique())
         self.md5s = list(self.db["md5"].unique())
 
-    def find_genomes_by_md5(
-        self, md5s: List[str], strict: bool = False
-    ) -> List[str]:
+    def find_genomes_by_md5(self, md5s: List[str], strict: bool = False) -> List[str]:
         """
         Given an md5-hashed seq, return all genome IDs with that sequence
 
@@ -120,12 +109,7 @@ class RnaDB:
 
             # Get distances
             rna_positions = np.array(genome_data["16s_position"], dtype=float)
-            dist = np.array(
-                [
-                    oor_distance(position=pos, oor=oor, size=size)
-                    for pos in rna_positions
-                ]
-            )
+            dist = np.array([oor_distance(position=pos, oor=oor, size=size) for pos in rna_positions])
             # TODO: try to do this with np.apply_along_axis
 
             # Maintain consistent indexing scheme for sequence MD5s
