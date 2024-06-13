@@ -7,6 +7,7 @@ from hashlib import md5
 
 from aptr import data_dir
 from aptr.string_operations import rc, key, primers
+from aptr.oor_distance import oor_distance
 
 
 def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent: bool = False) -> str:
@@ -89,12 +90,34 @@ def filter_db(
     #     ssu_table, dnaA_table, how="inner", on=["genome.genome_id", "feature.accession"], suffixes=["_16s", "_dnaA"]
     # )
     table = pd.read_table(path_to_table, dtype={"genome.genome_id": str, "feature.na_sequence": str})
+    table.columns = [
+        "genome.genome_id",
+        "genome.contigs",
+        "genome.genome_length",
+        "genome.genome_name",
+        "feature.accession_dnaA",
+        "feature.start_dnaA",
+        "feature.end_dnaA",
+        "feature.strand_dnaA",
+        "feature.patric_id_dnaA",
+        "feature.product_dnaA",
+        "feature.accession_16s",
+        "feature.start_16s",
+        "feature.end_16s",
+        "feature.strand_16s",
+        "feature.patric_id_16s",
+        "feature.na_sequence_16s",
+        "feature.na_sequence_md5_16s",
+        "feature.product_16s",
+    ]
+    # Keep only features where accessions are equal
+    table = table[table["feature.accession_16s"] == table["feature.accession_dnaA"]]
 
     original_len = len(table)
 
     # Add 16S substring
     table.loc[:, "filtered_seq"] = [
-        _trim_primers(x, left_primer, right_primer, silent=silent) for x in table["feature.na_sequence"]
+        _trim_primers(x, left_primer, right_primer, silent=silent) for x in table["feature.na_sequence_16s"]
     ]
 
     # Drop all bad values (may be redundant)
@@ -110,12 +133,12 @@ def filter_db(
     bad_seqs = set()
     while diff > 0:
         # Find contigs with a single sequence
-        table_by_contigs = table.groupby("feature.accession").nunique()
+        table_by_contigs = table.groupby("feature.accession_16s").nunique()
         bad_contigs_idx = table_by_contigs["filtered_seq"] == 1
         bad_contigs = table_by_contigs[bad_contigs_idx]["filtered_seq"].index
 
         # All sequences appearing in a bad contig are bad sequences
-        bad_seqs = bad_seqs | set(table[table["feature.accession"].isin(bad_contigs)]["filtered_seq"])
+        bad_seqs = bad_seqs | set(table[table["feature.accession_16s"].isin(bad_contigs)]["filtered_seq"])
 
         # Throw out any appearances of bad sequences
         table_filtered = table[~table["filtered_seq"].isin(bad_seqs)]
@@ -130,12 +153,12 @@ def filter_db(
         [
             "genome.genome_id",
             "genome.genome_name",
-            "genome.contigs_16s",
-            "feature.accession",
+            "genome.contigs",
+            "feature.accession_16s",
             "feature.patric_id_16s",
             "feature.start_16s",
             "feature.start_dnaA",
-            "genome.genome_length_16s",
+            "genome.genome_length",
             "filtered_seq",
         ]
     ]
@@ -152,6 +175,10 @@ def filter_db(
     ]
 
     table.loc[:, "md5"] = [md5(str(x).encode("utf-8")).hexdigest() for x in table["16s_sequence"]]
+
+    table.loc[:, "oor_distance"] = table.apply(
+        lambda x: oor_distance(x["16s_position"], oor=x["oor_position"], size=x["size"])[0][0], axis=1
+    )
 
     return table
 
