@@ -1,6 +1,13 @@
 # aPTR: amplicon peak-to-trough ratio
 Microbial dynamics inferred from single-sample amplicon sequencing
 
+## Prerequisited
+To install VSEARCH:
+```bash
+conda install vsearch -c bioconda
+```
+
+
 ## Generating tables
 We used [PATRIC p3-scripts](https://github.com/PATRIC3/PATRIC-distribution) to grab all 16S and dnaA from the PATRIC database.
 

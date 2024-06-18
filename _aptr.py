@@ -18,9 +18,7 @@ from aptr.torch_solver import TorchSolver
 
 def get_args():
     """All arguments for the aPTR pipeline"""
-    parser = argparse.ArgumentParser(
-        description="aPTR: a pipeline for solving metagenomic samples",
-    )
+    parser = argparse.ArgumentParser(description="aPTR: a pipeline for solving metagenomic samples")
     parser.add_argument(
         "path",
         type=str,
@@ -173,24 +171,12 @@ def run_aptr():
     pickle.dump(solver, open(f"{outdir}/solver.pkl", "wb"))
     print(f"Genomes: {solver.genome_ids}")
 
-    solver.train(
-        lr=0.1,
-        tolerance=1e-6,
-        clip=True,
-        alpha1=args.l1,
-        alpha2=args.l2,
-        model_bias=args.model_bias,
-    )
+    solver.train(lr=0.1, tolerance=1e-6, clip=True, alpha1=args.l1, alpha2=args.l2, model_bias=args.model_bias)
     inferred_ptrs = pd.DataFrame(
-        data=solver.R_hat.exp2().detach().numpy(),
-        index=solver.genome_ids,
-        columns=solver.sample_ids,
+        data=solver.R_hat.exp2().detach().numpy(), index=solver.genome_ids, columns=solver.sample_ids
     )
     inferred_abundances = pd.DataFrame(
-        # data=solver.A_hat.exp().detach().numpy(),
-        data=solver.A_hat.detach().numpy(),
-        index=solver.genome_ids,
-        columns=solver.sample_ids,
+        data=solver.A_hat.detach().numpy(), index=solver.genome_ids, columns=solver.sample_ids
     )
     inferred_bias = pd.Series(data=solver.bias.detach().numpy(), index=solver.md5s)
 
@@ -199,11 +185,7 @@ def run_aptr():
     unconvolved_coverages_normed = unconvolved_coverages / unconvolved_coverages.sum(axis=0)
     raw_reads = unconvolved_coverages_normed.detach().numpy() * solver.otu_table.sum(axis=0).values
     reads_per_genome = np.linalg.pinv(solver.members) @ raw_reads
-    n_reads_used = pd.DataFrame(
-        data=reads_per_genome,
-        index=solver.genome_ids,
-        columns=solver.sample_ids,
-    )
+    n_reads_used = pd.DataFrame(data=reads_per_genome, index=solver.genome_ids, columns=solver.sample_ids)
 
     # Filter by cutoff
     mask = n_reads_used > args.min_n_reads

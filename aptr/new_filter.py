@@ -110,8 +110,6 @@ def filter_db(
         "feature.na_sequence_md5_16s",
         "feature.product_16s",
     ]
-    # Keep only features where accessions are equal
-    table = table[table["feature.accession_16s"] == table["feature.accession_dnaA"]]
 
     original_len = len(table)
 
@@ -132,13 +130,19 @@ def filter_db(
     diff = 1
     bad_seqs = set()
     while diff > 0:
+        # Keep only features with both 16S and dnaA sequences
+        table = table.dropna(subset=["feature.na_sequence_16s", "feature.accession_dnaA"])
+
+        # Keep only features where accessions are equal
+        table = table[table["feature.accession_16s"] == table["feature.accession_dnaA"]]
+
         # Find contigs with a single sequence
         table_by_contigs = table.groupby("feature.accession_16s").nunique()
         bad_contigs_idx = table_by_contigs["filtered_seq"] == 1
         bad_contigs = table_by_contigs[bad_contigs_idx]["filtered_seq"].index
 
         # All sequences appearing in a bad contig are bad sequences
-        bad_seqs = bad_seqs | set(table[table["feature.accession_16s"].isin(bad_contigs)]["filtered_seq"])
+        bad_seqs |= set(table[table["feature.accession_16s"].isin(bad_contigs)]["filtered_seq"])
 
         # Throw out any appearances of bad sequences
         table_filtered = table[~table["filtered_seq"].isin(bad_seqs)]
