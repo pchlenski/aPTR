@@ -5,7 +5,7 @@ outputs/
 output/
 out/
 tmp/
-data/
+data/otu_tables/
 experiments/
 *.pyc
 notebooks/scratch*

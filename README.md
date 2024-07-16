@@ -11,12 +11,12 @@ conda install vsearch -c bioconda
 ## Generating tables
 We used [PATRIC p3-scripts](https://github.com/PATRIC3/PATRIC-distribution) to grab all 16S and dnaA from the PATRIC database.
 
-Command to generate `patric_table.tsv`:
+Command to generate `patric_table.tsv.gz`:
 
 ```bash
 p3-all-genomes \
-    --eq reference_genome,Representative \
-    --attr genome_id,contigs,genome_length,genome_name \
+    --in reference_genome,Representative,Reference \
+    --attr genome_id,contigs,genome_length,genome_name,genome_status,reference_genome \
 | p3-get-genome-features --col 1 \
     --eq "product,Chromosomal replication initiator protein DnaA" \
     --attr accession,start,end,strand,patric_id,product \
@@ -25,7 +25,7 @@ p3-all-genomes \
     --eq feature_type,rRNA \
     --eq product,SSU \
     --attr accession,start,end,strand,patric_id,na_sequence,na_sequence_md5,product \
-> patric_table.tsv
+| gzip > patric_table.tsv.gz
 ```
 
 ## Downloading sequences

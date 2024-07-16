@@ -53,10 +53,11 @@ def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent
 def filter_db(
     # path_to_dnaA: str = f"{data_dir}/allDnaA.tsv",
     # path_to_16s: str = f"{data_dir}/allSSU.tsv",
-    path_to_table: str = f"{data_dir}/patric_table.tsv",
+    path_to_table: str = f"{data_dir}/patric_table.tsv.gz",
     left_primer: str = None,
     right_primer: str = None,
     silent: bool = False,
+    bypass_filter=False,
 ) -> pd.DataFrame:
     """
     Filter DB by adapters, return candidate sequences
@@ -69,6 +70,10 @@ def filter_db(
         Primer with which to trim the sequence from the 3' end.
     right_primer: str
         Primer with which to trim the sequence from the 5' end.
+    silent: bool
+        If True, suppress all print statements.
+    bypass_filter: bool
+        If True, bypass all filtering steps and return the entire table.
 
     Returns:
     --------
@@ -77,45 +82,13 @@ def filter_db(
         no longer have two or more unique candidate sequences after trimming.
     """
 
-    # # Get tables
-    # dnaA_table = pd.read_table(path_to_dnaA, dtype={0: str})
-    # ssu_table = pd.read_table(path_to_16s, dtype={"genome.genome_id": str, "feature.na_sequence": str})
-
-    # # Clean up by DnaA:
-    # dnaA_table = dnaA_table[dnaA_table["feature.product"] == "Chromosomal replication initiator protein DnaA"]
-    # dnaA_table = dnaA_table.drop_duplicates("genome.genome_id")
-
-    # # Merge tables
-    # table = pd.merge(
-    #     ssu_table, dnaA_table, how="inner", on=["genome.genome_id", "feature.accession"], suffixes=["_16s", "_dnaA"]
-    # )
     table = pd.read_table(path_to_table, dtype={"genome.genome_id": str, "feature.na_sequence": str})
-    table.columns = [
-        "genome.genome_id",
-        "genome.contigs",
-        "genome.genome_length",
-        "genome.genome_name",
-        "feature.accession_dnaA",
-        "feature.start_dnaA",
-        "feature.end_dnaA",
-        "feature.strand_dnaA",
-        "feature.patric_id_dnaA",
-        "feature.product_dnaA",
-        "feature.accession_16s",
-        "feature.start_16s",
-        "feature.end_16s",
-        "feature.strand_16s",
-        "feature.patric_id_16s",
-        "feature.na_sequence_16s",
-        "feature.na_sequence_md5_16s",
-        "feature.product_16s",
-    ]
 
     original_len = len(table)
 
     # Add 16S substring
     table.loc[:, "filtered_seq"] = [
-        _trim_primers(x, left_primer, right_primer, silent=silent) for x in table["feature.na_sequence_16s"]
+        _trim_primers(x, left_primer, right_primer, silent=silent) for x in table["feature.na_sequence"]
     ]
 
     # Drop all bad values (may be redundant)
@@ -127,27 +100,28 @@ def filter_db(
         print(np.sum(table["filtered_seq"] != "") / original_len, "sequences remain after trimming")
 
     # Iteratively filter on sequence
-    diff = 1
-    bad_seqs = set()
-    while diff > 0:
-        # Keep only features with both 16S and dnaA sequences
-        table = table.dropna(subset=["feature.na_sequence_16s", "feature.accession_dnaA"])
+    if not bypass_filter:
+        diff = 1
+        bad_seqs = set()
+        while diff > 0:
+            # Keep only features with both 16S and dnaA sequences
+            # table = table.dropna(subset=["feature.na_sequence_16s", "feature.accession_dnaA"])
 
-        # Keep only features where accessions are equal
-        table = table[table["feature.accession_16s"] == table["feature.accession_dnaA"]]
+            # Keep only features where accessions are equal
+            table = table[table["feature.accession"] == table["feature.accession.1"]]
 
-        # Find contigs with a single sequence
-        table_by_contigs = table.groupby("feature.accession_16s").nunique()
-        bad_contigs_idx = table_by_contigs["filtered_seq"] == 1
-        bad_contigs = table_by_contigs[bad_contigs_idx]["filtered_seq"].index
+            # Find contigs with a single sequence
+            table_by_contigs = table.groupby("feature.accession.1").nunique()
+            bad_contigs_idx = table_by_contigs["filtered_seq"] == 1
+            bad_contigs = table_by_contigs[bad_contigs_idx]["filtered_seq"].index
 
-        # All sequences appearing in a bad contig are bad sequences
-        bad_seqs |= set(table[table["feature.accession_16s"].isin(bad_contigs)]["filtered_seq"])
+            # All sequences appearing in a bad contig are bad sequences
+            bad_seqs |= set(table[table["feature.accession.1"].isin(bad_contigs)]["filtered_seq"])
 
-        # Throw out any appearances of bad sequences
-        table_filtered = table[~table["filtered_seq"].isin(bad_seqs)]
-        diff = len(table) - len(table_filtered)
-        table = table_filtered
+            # Throw out any appearances of bad sequences
+            table_filtered = table[~table["filtered_seq"].isin(bad_seqs)]
+            diff = len(table) - len(table_filtered)
+            table = table_filtered
 
     if not silent:
         print(np.sum(table["filtered_seq"] != "") / original_len, "sequences remain after filtering")
@@ -157,11 +131,13 @@ def filter_db(
         [
             "genome.genome_id",
             "genome.genome_name",
+            "genome.genome_status",
+            # "genome.reference_genome",
             "genome.contigs",
-            "feature.accession_16s",
-            "feature.patric_id_16s",
-            "feature.start_16s",
-            "feature.start_dnaA",
+            "feature.accession.1",
+            "feature.patric_id.1",
+            "feature.start.1",
+            "feature.start",
             "genome.genome_length",
             "filtered_seq",
         ]
@@ -169,6 +145,8 @@ def filter_db(
     table.columns = [
         "genome",
         "genome_name",
+        "genome_status",
+        # "reference_genome",
         "n_contigs",
         "contig",
         "feature",
