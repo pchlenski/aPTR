@@ -24,6 +24,8 @@ def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent
         Primer with which to trim the sequence from the 5' end.
     reverse: bool
         If True, reverse-complement right primer before trimming.
+    silent: bool
+        If True, suppress all print statements.
 
     Returns:
     --------
@@ -51,8 +53,6 @@ def _trim_primers(seq: str, left: str, right: str, reverse: bool = False, silent
 
 
 def filter_db(
-    # path_to_dnaA: str = f"{data_dir}/allDnaA.tsv",
-    # path_to_16s: str = f"{data_dir}/allSSU.tsv",
     path_to_table: str = f"{data_dir}/patric_table.tsv.gz",
     left_primer: str = None,
     right_primer: str = None,
@@ -132,7 +132,7 @@ def filter_db(
             "genome.genome_id",
             "genome.genome_name",
             "genome.genome_status",
-            # "genome.reference_genome",
+            "genome.reference_genome",
             "genome.contigs",
             "feature.accession.1",
             "feature.patric_id.1",
@@ -146,7 +146,7 @@ def filter_db(
         "genome",
         "genome_name",
         "genome_status",
-        # "reference_genome",
+        "reference_genome",
         "n_contigs",
         "contig",
         "feature",
